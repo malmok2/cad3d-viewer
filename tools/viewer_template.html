@@ -1,0 +1,1159 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CAD 3D 뷰어</title>
+<style>
+/* Pretendard Variable (SIL OFL) 을 파일에 넣는다 — 앱 안의 렌더 패널처럼 CDN 이 막힌 곳에서
+   맑은 고딕으로 떨어지면 640/520 같은 중간 굵기가 합성 볼드로 뭉개진다. */
+@font-face{font-family:"Pretendard Variable";font-weight:45 920;font-style:normal;font-display:block;
+  src:url(data:font/woff2;base64,__FONT__) format("woff2")}
+/* ── 토큰 (house style, 그대로) ─────────────────────────────────────────── */
+:root{
+  --bg:#ffffff;
+  --glass:rgba(249,250,251,.82); --glass2:rgba(234,237,241,.92);
+  --glass3:rgba(222,227,233,.96); --sunk:rgba(116,127,142,.15);
+  --hl:rgba(255,255,255,.92);     --line:rgba(88,99,114,.16);
+  --text:#15181c;                 --muted:#22262b;
+  --accent:#0f4c81; --accent-press:#0b3a63; --accent-fg:#ffffff;
+  --accent-soft:rgba(15,76,129,.11); --focus:rgba(15,76,129,.30);
+  --ok:#1d7048; --caution:#7d580f; --bad:#a83f2b;
+  --sh-1:0 1px 2px rgba(24,31,42,.12);
+  --sh-2:0 2px 6px rgba(24,31,42,.10), 0 10px 26px rgba(24,31,42,.12);
+  --sh-3:0 8px 20px rgba(24,31,42,.16), 0 28px 64px rgba(24,31,42,.20);
+  --blur:blur(20px) saturate(120%);
+  --font:"Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; color:var(--text); font-family:var(--font);
+  font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased;
+  background:var(--bg); overflow:hidden; font-variant-numeric:tabular-nums;
+}
+.glass{
+  background:var(--glass);
+  -webkit-backdrop-filter:var(--blur); backdrop-filter:var(--blur);
+  box-shadow:var(--sh-2), inset 0 1px 0 var(--hl);
+  border-radius:16px;
+}
+
+/* ── 무대 ───────────────────────────────────────────────────────────────── */
+#stage{position:fixed;inset:0}
+#cv,#ov{position:absolute;inset:0;display:block;width:100%;height:100%}
+#cv{cursor:grab} #cv.drag{cursor:grabbing} #ov{pointer-events:none}
+#triad{position:fixed;right:22px;bottom:22px;width:104px;height:104px;pointer-events:none}
+#drop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  background:var(--accent-soft);font-size:17px;font-weight:640;color:var(--accent);pointer-events:none}
+#drop.on{display:flex}
+#status{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+  background:var(--glass3);-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  box-shadow:var(--sh-2),inset 0 1px 0 var(--hl);color:var(--text);font-size:13px;font-weight:520;
+  padding:8px 16px;border-radius:12px;opacity:0;transition:opacity .18s;pointer-events:none;max-width:70vw}
+#status.on{opacity:1}
+#status.bad{color:var(--bad)}
+
+/* ── 패널 ───────────────────────────────────────────────────────────────── */
+#ui{position:fixed;top:18px;left:18px;width:300px;padding:18px 18px 20px;
+  max-height:calc(100vh - 36px);overflow:auto;overscroll-behavior:contain}
+.head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px}
+h1{font-size:17px;font-weight:640;letter-spacing:-.012em;margin:0}
+.sub{color:var(--muted);font-size:12.5px;font-weight:480;margin:0 0 12px}
+.grp{margin-top:14px;padding-top:12px;box-shadow:inset 0 1px 0 var(--line)}
+.grp.first{margin-top:0;padding-top:0;box-shadow:none}
+.tag{display:inline-block;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--accent);background:var(--accent-soft);border-radius:7px;padding:2px 7px;margin-bottom:8px}
+.lbl{display:flex;justify-content:space-between;align-items:center}
+.lbl .val{font-size:12px;font-weight:560;color:var(--muted)}
+
+/* 버튼 */
+button{font:inherit;font-size:12.5px;font-weight:560;color:var(--text);background:var(--glass2);
+  border:0;border-radius:12px;padding:8px 6px;cursor:pointer;box-shadow:var(--sh-1),inset 0 1px 0 var(--hl);
+  transition:background .1s,transform .05s,box-shadow .05s}
+button:hover{background:var(--glass3)}
+button:active{transform:translateY(1px);box-shadow:none}
+button:focus-visible{outline:0;box-shadow:0 0 0 3px var(--focus)}
+button.primary{background:var(--accent);color:var(--accent-fg)}
+button.primary:hover{background:var(--accent-press)}
+button.wide{width:100%;padding:9px 8px}
+button.icon{display:inline-flex;align-items:center;justify-content:center;gap:6px}
+button svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.axes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.axes.two{grid-template-columns:repeat(2,1fr);margin-top:6px}
+.lang{font-size:11.5px;padding:4px 9px;border-radius:9px;box-shadow:none;background:var(--accent-soft);color:var(--accent)}
+
+/* 세그먼트 컨트롤 — 가라앉은 트랙, 액센트 칩 */
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:3px;padding:3px;border-radius:12px;
+  background:var(--sunk);box-shadow:inset 0 1px 2px rgba(24,31,42,.14)}
+.seg button{border-radius:9px;box-shadow:none;background:transparent;padding:6px 4px}
+.seg button:hover{background:rgba(255,255,255,.55)}
+.seg button.on{background:var(--accent-soft);color:var(--accent)}
+
+/* 체크박스 — 19px 둥근 사각, 켜지면 액센트 채움 */
+label.pick{display:flex;align-items:center;gap:9px;padding:4px 0;cursor:pointer;font-size:13px;font-weight:500}
+label.pick input{appearance:none;-webkit-appearance:none;margin:0;flex:none;width:19px;height:19px;border-radius:6px;
+  background:var(--glass2);box-shadow:inset 0 1px 2px rgba(24,31,42,.16);cursor:pointer;
+  background-repeat:no-repeat;background-position:center;background-size:12px}
+label.pick input:checked{background-color:var(--accent);box-shadow:var(--sh-1);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.2 6.3l2.6 2.5 5-5.4' fill='none' stroke='%23fff' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+label.pick input:focus-visible{outline:0;box-shadow:0 0 0 3px var(--focus)}
+label.pick .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cnt{margin-left:auto;color:var(--muted);font-size:11.5px;font-weight:520;flex:none}
+.rm{flex:none;padding:3px;border-radius:7px;box-shadow:none;background:transparent;color:var(--muted);line-height:0}
+.rm:hover{background:var(--accent-soft);color:var(--bad)}
+.rm svg{width:12px;height:12px}
+
+/* 숫자 필드 + 슬라이더 쌍 */
+.num{display:grid;grid-template-columns:1fr 78px;gap:8px;align-items:center;margin-top:6px}
+.num .cap{font-size:12.5px;font-weight:520;color:var(--muted)}
+.num input[type=number]{font:inherit;font-size:12.5px;font-weight:560;color:var(--text);width:100%;
+  padding:5px 8px;border:0;border-radius:9px;background:var(--glass2);
+  box-shadow:inset 0 1px 2px rgba(24,31,42,.14);text-align:right}
+.num input[type=number]:focus{outline:0;box-shadow:inset 0 1px 2px rgba(24,31,42,.14),0 0 0 3px var(--focus)}
+.num input[type=number]::-webkit-inner-spin-button{opacity:.5}
+input[type=range]{appearance:none;-webkit-appearance:none;width:100%;height:4px;border-radius:2px;margin:9px 0 4px;
+  background:var(--sunk);box-shadow:inset 0 1px 1px rgba(24,31,42,.12);cursor:pointer}
+input[type=range]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft),var(--sh-1);border:0}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--accent);border:0;
+  box-shadow:0 0 0 4px var(--accent-soft),var(--sh-1)}
+input[type=range]:focus-visible{outline:0;box-shadow:0 0 0 3px var(--focus)}
+.vec{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.vec .num{grid-template-columns:1fr;gap:2px;margin:0}
+.vec .num input[type=range]{margin:4px 0 0}
+
+/* 단면 목록 */
+.prow{display:flex;align-items:center;gap:8px;padding:5px 8px;margin:0 -8px;border-radius:10px;
+  font-size:12.5px;font-weight:520;cursor:pointer}
+.prow:hover{background:var(--glass2)}
+.prow.sel{background:var(--accent-soft);color:var(--accent)}
+.prow .pl{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prow.off .pl{text-decoration:line-through}
+.prow input{appearance:none;-webkit-appearance:none;margin:0;flex:none;width:17px;height:17px;border-radius:5px;
+  background:var(--glass2);box-shadow:inset 0 1px 2px rgba(24,31,42,.16);cursor:pointer;
+  background-repeat:no-repeat;background-position:center;background-size:11px}
+.prow input:checked{background-color:var(--accent);box-shadow:var(--sh-1);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.2 6.3l2.6 2.5 5-5.4' fill='none' stroke='%23fff' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+
+.hint{color:var(--muted);font-size:12px;font-weight:480;line-height:1.55;margin:8px 0 0}
+.hint code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:var(--accent-soft);
+  border-radius:5px;padding:0 4px}
+kbd{font:inherit;font-size:11px;font-weight:560;background:var(--glass2);box-shadow:var(--sh-1);
+  border-radius:5px;padding:1px 5px}
+#shot{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(21,24,28,.45);z-index:10}
+#shot.on{display:flex}
+#shot .box{padding:16px;max-width:min(92vw,1100px);max-height:92vh;display:flex;flex-direction:column;gap:12px;box-shadow:var(--sh-3),inset 0 1px 0 var(--hl)}
+#shot img{max-width:100%;max-height:calc(92vh - 120px);object-fit:contain;border-radius:8px;box-shadow:var(--sh-1);background:#fff}
+#shot .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#shot .bar .hint{flex:1;margin:0;min-width:200px}
+</style>
+
+<div id="stage"><canvas id="cv"></canvas><canvas id="ov"></canvas></div>
+<canvas id="triad" width="208" height="208"></canvas>
+<div id="drop"></div>
+<div id="status"></div>
+<div id="shot"><div class="box glass">
+  <img id="shotImg" alt="">
+  <div class="bar">
+    <button class="primary icon" id="shotDl"><svg viewBox="0 0 16 16"><path d="M8 2v8M4.5 6.5L8 10l3.5-3.5M3 13h10"/></svg><span id="tShotDl"></span></button>
+    <button class="icon" id="shotCopy"><svg viewBox="0 0 16 16"><path d="M5 5h7v8H5zM3 3h7v1.5"/></svg><span id="tShotCopy"></span></button>
+    <p class="hint" id="tShotHint"></p>
+    <button id="shotClose"><span id="tShotClose"></span></button>
+  </div>
+</div></div>
+
+<div id="ui" class="glass">
+  <div class="head"><h1 id="tTitle"></h1><button class="lang" id="langBtn"></button></div>
+  <p class="sub" id="tSub"></p>
+
+  <div class="grp first">
+    <div class="lbl"><span class="tag" id="tParts"></span><span class="val" id="tricount"></span></div>
+    <div id="parts"></div>
+    <input type="file" id="file" multiple accept=".stl,.obj,.ply" hidden>
+    <button class="wide icon" id="open" style="margin-top:8px">
+      <svg viewBox="0 0 16 16"><path d="M2 4.5h4l1.5 1.5H14v7H2z"/></svg><span id="tOpen"></span></button>
+    <p class="hint" id="tConvHint"></p>
+  </div>
+
+  <div class="grp">
+    <div class="lbl"><span class="tag" id="tView"></span></div>
+    <div class="axes">
+      <button data-v="+x">+X</button><button data-v="+y">+Y</button><button data-v="+z">+Z</button>
+      <button data-v="-x">&minus;X</button><button data-v="-y">&minus;Y</button><button data-v="-z">&minus;Z</button>
+    </div>
+    <div class="axes two">
+      <button data-v="iso">ISO</button>
+      <div class="seg" id="projSeg"><button data-p="1" id="tOrtho"></button><button data-p="0" id="tPersp"></button></div>
+    </div>
+  </div>
+
+  <div class="grp">
+    <div class="lbl"><span class="tag" id="tShow"></span><span class="val" id="dxyz"></span></div>
+    <div class="num"><span class="cap" id="tOpacity"></span><input type="number" id="opN" min="0" max="100" step="1"></div>
+    <input type="range" id="op" min="8" max="100" step="1">
+    <label class="pick"><input type="checkbox" id="dims"><span id="tDims"></span></label>
+    <label class="pick"><input type="checkbox" id="wire"><span id="tWire"></span></label>
+  </div>
+
+  <div class="grp">
+    <div class="lbl"><span class="tag" id="tCut"></span><span class="val" id="cutv"></span></div>
+    <div id="planes"></div>
+    <button class="wide icon" id="addPlane" style="margin:6px 0 10px">
+      <svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg><span id="tAddPlane"></span></button>
+    <div class="axes">
+      <button data-n="1,0,0">&#8869; x</button><button data-n="0,1,0">&#8869; y</button><button data-n="0,0,1">&#8869; z</button>
+    </div>
+    <div class="axes two"><button id="nView"></button><button id="nFlip"></button></div>
+    <div class="vec">
+      <div class="num"><input type="number" id="nxN" step="0.1"><input type="range" id="nx" min="-1" max="1" step="0.01"></div>
+      <div class="num"><input type="number" id="nyN" step="0.1"><input type="range" id="ny" min="-1" max="1" step="0.01"></div>
+      <div class="num"><input type="number" id="nzN" step="0.1"><input type="range" id="nz" min="-1" max="1" step="0.01"></div>
+    </div>
+    <div class="num"><span class="cap" id="tCutPos"></span><input type="number" id="cutN" step="0.5"></div>
+    <input type="range" id="cut" min="0" max="1" step="0.002">
+    <label class="pick"><input type="checkbox" id="showPlane"><span id="tShowPlane"></span></label>
+    <p class="hint" id="tCutHint"></p>
+  </div>
+
+  <div class="grp">
+    <div class="lbl"><span class="tag" id="tSave"></span></div>
+    <label class="pick"><input type="checkbox" id="alpha"><span id="tAlpha"></span></label>
+    <div class="axes two">
+      <button class="primary icon" id="save"><svg viewBox="0 0 16 16"><path d="M8 2v8M4.5 6.5L8 10l3.5-3.5M3 13h10"/></svg><span id="tSavePng"></span></button>
+      <button class="icon" id="share"><svg viewBox="0 0 16 16"><path d="M6.5 9.5l3-3M5 11a2.5 2.5 0 01-3.5-3.5l2-2A2.5 2.5 0 017 7M11 5a2.5 2.5 0 013.5 3.5l-2 2A2.5 2.5 0 019 9"/></svg><span id="tShare"></span></button>
+    </div>
+  </div>
+
+  <div class="grp"><p class="hint" id="tKeys" style="margin:0"></p></div>
+</div>
+
+<script>
+'use strict';
+// ── 구워 넣은 형상 (tools/cad2stl.py → STL → int16 양자화) ─────────────────────
+const BAKED = __PARTS__;
+const BAKED_CTR = __CTR__, BAKED_QS = __QS__;
+const CREASE_DEG = 12;          // 이 각 이상 꺾이는 모서리는 날을 살린다 (오프라인 렌더로 고른 값)
+const MAX_FILE_MB = 200;        // 이보다 크면 파싱 전에 거절한다 (브라우저 메모리)
+const LIGHT_MS = 180;           // 드래그가 멈춘 뒤 이 시간이 지나면 전체 품질로 다시 그린다
+
+// ── 문자열: 키 기반 사전 하나, setLang 이 선택자로 DOM 을 훑는다 ─────────────
+const STR = {
+  ko: {
+    title: 'CAD 3D 뷰어', sub: '논문 그림용 형상 확인 · 정면샷 · 치수 · 단면', langBtn: 'English',
+    parts: '형상', open: '파일 열기 (STL · OBJ · PLY)',
+    convHint: 'STEP · IGES · BREP · HDF 는 <code>tools\\cad2stl.py</code> 로 STL 로, Fluent <code>.msh</code> · <code>.cas</code> 는 <code>tools\\fluent2obj.py</code> 로 OBJ 로 바꿔서 연다. SpaceClaim 은 STEP 이나 STL 로 내보낸다.',
+    view: '정면 시점 — 카메라 위치', ortho: '직교', persp: '원근',
+    show: '표시', opacity: '불투명도 [%]', dims: '전체 치수 표시', wire: '격자선 (와이어프레임)',
+    cut: '단면', addPlane: '단면 추가', nView: '시점 방향', nFlip: '반대쪽', cutPos: '위치 (파일 단위)',
+    showPlane: '절단면 윤곽 표시',
+    cutHint: '목록에서 고른 단면을 위 버튼·법선·위치로 편집한다. 여러 단면은 각각 남기는 쪽의 <b>교집합</b>만 남긴다 (두 개를 직교로 걸면 1/4 절단).',
+    save: '저장', alpha: '배경 투명', savePng: 'PNG (3×)', share: '링크 복사',
+    shotDl: '다운로드', shotCopy: '클립보드 복사', shotClose: '닫기',
+    shotHint: '다운로드가 막힌 창(앱 안 미리보기 등)이면 그림을 우클릭 → "이미지를 다른 이름으로 저장", 또는 클립보드로 복사해 붙여 넣는다.',
+    stShotCopied: a => `${a.w}×${a.h} PNG 를 클립보드에 복사했다 — 파워포인트·워드에 Ctrl+V`,
+    stDlBlocked: '이 창(앱 안 미리보기)은 파일 다운로드를 막는다 — 클립보드 복사나 그림 우클릭 저장을 쓰거나, 파일을 Chrome·Edge 에서 연다',
+    shotHintEmbedded: '이 창은 다운로드를 막는다. 클립보드로 복사해 붙여 넣거나, 그림을 우클릭 → "이미지를 다른 이름으로 저장". 파일로 받으려면 HTML 을 브라우저에서 연다.',
+    stShotCopyFail: '클립보드에 이미지를 쓸 수 없다 — 그림을 우클릭해 저장한다',
+    keys: '<kbd>드래그</kbd> 회전 · <kbd>휠</kbd> 확대 · <kbd>Shift+드래그</kbd> 이동 · 파일을 창에 끌어다 놓아도 된다',
+    drop: '여기에 놓으면 열린다 — STL · OBJ · PLY',
+    tipNView: '지금 보는 방향에 수직인 면으로 자른다', tipNFlip: '남기는 쪽을 바꾼다',
+    tipPlaneOn: '켜기/끄기', tipRemove: '삭제', tipClose: '닫기',
+    tri: n => `${n.toLocaleString()} tri`,
+    cutCount: n => n ? `${n}개 적용` : '전체',
+    planeOff: '꺼짐', planeNoCut: '자르지 않음',
+    planeLabel: (lhs, d) => `${lhs} < ${d.toFixed(1)}`,
+    emptyNone: '열린 형상이 없다 — 파일을 열거나 창에 끌어다 놓는다',
+    emptyAllOff: '형상이 모두 꺼져 있다 — 목록에서 하나를 켠다',
+    stReading: a => `${a.name} 읽는 중…`,
+    stLoaded: a => a.groups > 1 ? `${a.name}: 그룹 ${a.groups}개, 삼각형 ${a.n.toLocaleString()}개` : `${a.name}: 삼각형 ${a.n.toLocaleString()}개`,
+    stUnsupported: a => `${a.name}: .${a.ext} 는 열 수 없다 — STL·OBJ·PLY 만 직접 열린다. STEP·IGES·BREP·HDF 는 tools\\cad2stl.py, Fluent .msh/.cas 는 tools\\fluent2obj.py 로 바꾼다`,
+    stTooBig: a => `${a.name}: ${a.mb} MB — ${MAX_FILE_MB} MB 를 넘어 열지 않았다. 메시를 줄이거나(cad2stl.py --defl 값을 키운다) 파일을 나눈다`,
+    stNoTris: a => `${a.name}: 삼각형이 없다 — ${a.why}`,
+    stFail: a => `${a.name}: 읽기 실패 — ${a.why}`,
+    stCopied: '링크를 복사했다 — 불투명도·치수·단면 설정이 들어 있다 (카메라는 제외)',
+    stCopyFail: '클립보드에 쓸 수 없다 — 주소창의 URL 을 직접 복사한다',
+    whyStlHeader: a => `헤더의 삼각형 수 ${a.n.toLocaleString()} 와 파일 크기 ${a.size.toLocaleString()} B 가 맞지 않고(84 + 50·n 이어야 한다), ASCII 'vertex' 줄도 없다`,
+    whyObjNoFace: a => `v ${a.v.toLocaleString()}개, f 0개 — 면 없는 점군이다. 면(f) 줄이 있는 OBJ 가 필요하다`,
+    whyPlyElems: a => `vertex/face 요소가 없다. 파일에 있는 요소: ${a.elems.join(', ') || '(없음)'}`,
+    whyDegenerate: '모든 면의 넓이가 0 이다 (정점이 겹친다)',
+  },
+  en: {
+    title: 'CAD 3D Viewer', sub: 'Geometry check for paper figures · axis shots · dimensions · sections', langBtn: '한국어',
+    parts: 'Parts', open: 'Open file (STL · OBJ · PLY)',
+    convHint: 'STEP · IGES · BREP · HDF: <code>tools\\cad2stl.py</code> → STL. Fluent <code>.msh</code> / <code>.cas</code>: <code>tools\\fluent2obj.py</code> → OBJ. SpaceClaim: export STEP or STL.',
+    view: 'Axis view — camera position', ortho: 'Ortho', persp: 'Persp',
+    show: 'Display', opacity: 'Opacity [%]', dims: 'Show overall dimensions', wire: 'Mesh lines (wireframe)',
+    cut: 'Section', addPlane: 'Add plane', nView: 'View dir', nFlip: 'Flip side', cutPos: 'Position (file units)',
+    showPlane: 'Show plane outline',
+    cutHint: 'The selected plane is edited by the buttons, normal and position above. Several planes keep the <b>intersection</b> of their kept sides (two orthogonal planes give a quarter cut).',
+    save: 'Export', alpha: 'Transparent background', savePng: 'PNG (3×)', share: 'Copy link',
+    shotDl: 'Download', shotCopy: 'Copy to clipboard', shotClose: 'Close',
+    shotHint: 'If downloads are blocked here (e.g. an in-app preview), right-click the image → "Save image as…", or copy it to the clipboard and paste.',
+    stShotCopied: a => `${a.w}×${a.h} PNG copied to the clipboard — paste with Ctrl+V`,
+    stDlBlocked: 'This window (an in-app preview) blocks file downloads — copy to the clipboard, right-click the image to save, or open the HTML in Chrome/Edge',
+    shotHintEmbedded: 'Downloads are blocked in this window. Copy to the clipboard and paste, or right-click the image → "Save image as…". To get a file, open the HTML in a browser.',
+    stShotCopyFail: 'Cannot write an image to the clipboard — right-click the image to save it',
+    keys: '<kbd>Drag</kbd> rotate · <kbd>Wheel</kbd> zoom · <kbd>Shift+drag</kbd> pan · files can be dropped on the window',
+    drop: 'Drop to open — STL · OBJ · PLY',
+    tipNView: 'Cut with a plane normal to the current view', tipNFlip: 'Swap which side is kept',
+    tipPlaneOn: 'On/off', tipRemove: 'Remove', tipClose: 'Close',
+    tri: n => `${n.toLocaleString()} tri`,
+    cutCount: n => n ? `${n} active` : 'none',
+    planeOff: 'off', planeNoCut: 'not cutting',
+    planeLabel: (lhs, d) => `${lhs} < ${d.toFixed(1)}`,
+    emptyNone: 'No geometry open — open a file or drop one on the window',
+    emptyAllOff: 'All parts are hidden — enable one in the list',
+    stReading: a => `Reading ${a.name}…`,
+    stLoaded: a => a.groups > 1 ? `${a.name}: ${a.groups} groups, ${a.n.toLocaleString()} triangles` : `${a.name}: ${a.n.toLocaleString()} triangles`,
+    stUnsupported: a => `${a.name}: .${a.ext} cannot be opened — only STL, OBJ, PLY open directly. Convert STEP/IGES/BREP/HDF with tools\\cad2stl.py, Fluent .msh/.cas with tools\\fluent2obj.py`,
+    stTooBig: a => `${a.name}: ${a.mb} MB exceeds ${MAX_FILE_MB} MB — not opened. Coarsen the mesh (raise --defl in cad2stl.py) or split the file`,
+    stNoTris: a => `${a.name}: no triangles — ${a.why}`,
+    stFail: a => `${a.name}: read failed — ${a.why}`,
+    stCopied: 'Link copied — carries opacity, dimensions and section planes (camera excluded)',
+    stCopyFail: 'Clipboard unavailable — copy the URL from the address bar',
+    whyStlHeader: a => `header says ${a.n.toLocaleString()} triangles but the file is ${a.size.toLocaleString()} B (expected 84 + 50·n), and there are no ASCII 'vertex' lines`,
+    whyObjNoFace: a => `${a.v.toLocaleString()} v lines, 0 f lines — a point cloud without faces; an OBJ with f lines is needed`,
+    whyPlyElems: a => `no vertex/face elements. Elements present: ${a.elems.join(', ') || '(none)'}`,
+    whyDegenerate: 'every face has zero area (coincident vertices)',
+  },
+};
+const TEXT_MAP = { '#tTitle': 'title', '#tSub': 'sub', '#langBtn': 'langBtn', '#tParts': 'parts', '#tOpen': 'open',
+  '#tView': 'view', '#tOrtho': 'ortho', '#tPersp': 'persp', '#tShow': 'show', '#tOpacity': 'opacity', '#tDims': 'dims', '#tWire': 'wire',
+  '#tCut': 'cut', '#tAddPlane': 'addPlane', '#nView': 'nView', '#nFlip': 'nFlip', '#tCutPos': 'cutPos',
+  '#tShowPlane': 'showPlane', '#tSave': 'save', '#tAlpha': 'alpha', '#tSavePng': 'savePng', '#tShare': 'share', '#drop': 'drop',
+  '#tShotDl': 'shotDl', '#tShotCopy': 'shotCopy', '#tShotClose': 'shotClose', '#tShotHint': 'shotHint' };
+const HTML_MAP = { '#tConvHint': 'convHint', '#tCutHint': 'cutHint', '#tKeys': 'keys' };
+const EMBEDDED_EARLY = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+if (EMBEDDED_EARLY) TEXT_MAP['#tShotHint'] = 'shotHintEmbedded';
+const TIP_MAP = { '#nView': 'tipNView', '#nFlip': 'tipNFlip' };
+let lang = 'ko';
+const T = () => STR[lang];
+function setLang(l) {
+  lang = STR[l] ? l : 'ko';
+  for (const [sel, key] of Object.entries(TEXT_MAP)) document.querySelector(sel).textContent = T()[key];
+  for (const [sel, key] of Object.entries(HTML_MAP)) document.querySelector(sel).innerHTML = T()[key];
+  for (const [sel, key] of Object.entries(TIP_MAP)) document.querySelector(sel).title = T()[key];
+  document.title = T().title;
+  store.set('lang', lang);
+  renderList(); renderStatus(); updateScene(); draw();
+}
+
+// ── 저장소: localStorage 는 브라우저마다 다르고 접근 자체가 던질 수 있다 ───────
+const store = {
+  get(k) { try { return localStorage.getItem('cadviewer.' + k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem('cadviewer.' + k, v); } catch (e) { /* 사설 창 등 — 없어도 된다 */ } },
+};
+
+// ── 벡터/행렬 ────────────────────────────────────────────────────────────────
+const sub = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+const add = (a, b) => [a[0]+b[0], a[1]+b[1], a[2]+b[2]];
+const mul = (a, s) => [a[0]*s, a[1]*s, a[2]*s];
+const dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+const cross = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const norm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0]/l, a[1]/l, a[2]/l]; };
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+function persp(fov, asp, n, f) {
+  const t = 1 / Math.tan(fov / 2), o = new Float32Array(16);
+  o[0] = t / asp; o[5] = t; o[10] = (f + n) / (n - f); o[11] = -1; o[14] = 2 * f * n / (n - f); return o;
+}
+function ortho(hh, asp, n, f) {
+  const o = new Float32Array(16);
+  o[0] = 1 / (hh * asp); o[5] = 1 / hh; o[10] = -2 / (f - n); o[14] = -(f + n) / (f - n); o[15] = 1; return o;
+}
+function look(e, c, up) {
+  const z = norm(sub(e, c)), x = norm(cross(up, z)), y = cross(z, x);
+  return { m: new Float32Array([x[0],y[0],z[0],0, x[1],y[1],z[1],0, x[2],y[2],z[2],0,
+    -dot(x,e), -dot(y,e), -dot(z,e), 1]), basis: [x, y, z] };
+}
+function xform(M, p) {
+  return [M[0]*p[0]+M[4]*p[1]+M[8]*p[2]+M[12], M[1]*p[0]+M[5]*p[1]+M[9]*p[2]+M[13],
+          M[2]*p[0]+M[6]*p[1]+M[10]*p[2]+M[14], M[3]*p[0]+M[7]*p[1]+M[11]*p[2]+M[15]];
+}
+
+// ── 파일 파서: 모두 { V: Float32Array(3·n), faces: Int32Array [k, i0..ik-1, k, …], groups } 로 ────
+// 다각형을 그대로 남겨 두는 이유: 격자선을 그릴 때 사각형은 사각형으로 보여야 한다 (삼각화 대각선 없이).
+// 오류 메시지는 고칠 사람에게 필요한 상태(파일에 실제로 있는 것)를 담는다.
+class ParseError extends Error { constructor(key, args) { super(key); this.key = key; this.args = args; } }
+const triSoup = (arr) => {                       // 삼각형 수프 → 공통 형식
+  const n = Math.floor(arr.length / 9), faces = new Int32Array(n * 4);
+  for (let i = 0; i < n; i++) { faces[i*4] = 3; faces[i*4+1] = i*3; faces[i*4+2] = i*3+1; faces[i*4+3] = i*3+2; }
+  return { V: arr.subarray(0, n * 9), faces, groups: null };
+};
+
+function parseSTL(buf) {
+  const u8 = new Uint8Array(buf);
+  let ascii = true, n = 0;
+  if (u8.length >= 84) {
+    n = new DataView(buf).getUint32(80, true);
+    const head = new TextDecoder('latin1').decode(u8.subarray(0, Math.min(u8.length, 512)));
+    ascii = /^\s*solid/i.test(head) && (84 + 50 * n !== u8.length);   // 'solid' 로 시작하는 바이너리도 흔하다
+  }
+  if (!ascii) {
+    if (84 + 50 * n !== u8.length) throw new ParseError('whyStlHeader', { n, size: u8.length });
+    const dv = new DataView(buf), out = new Float32Array(n * 9);
+    let o = 84;
+    for (let i = 0; i < n; i++) {
+      o += 12;
+      for (let k = 0; k < 9; k++) { out[i*9+k] = dv.getFloat32(o, true); o += 4; }
+      o += 2;
+    }
+    return triSoup(out);
+  }
+  const t = new TextDecoder().decode(u8);
+  const re = /vertex\s+([-+\d.eE]+)\s+([-+\d.eE]+)\s+([-+\d.eE]+)/g;
+  const a = []; let m;
+  while ((m = re.exec(t))) a.push(+m[1], +m[2], +m[3]);
+  if (!a.length) throw new ParseError('whyStlHeader', { n, size: u8.length });
+  return triSoup(new Float32Array(a));
+}
+
+function parseOBJ(buf) {
+  const t = new TextDecoder().decode(buf), V = [], F = [], groups = []; let nf = 0, cur = null;
+  const openGroup = name => { if (cur) cur.end = F.length; cur = { name, start: F.length, end: F.length }; groups.push(cur); };
+  for (const raw of t.split('\n')) {
+    const c0 = raw.charCodeAt(0), c1 = raw.charCodeAt(1);
+    if (c0 === 118 && c1 === 32) {                                   // 'v '
+      const p = raw.trim().split(/\s+/); V.push(+p[1], +p[2], +p[3]);
+    } else if (c0 === 102 && (c1 === 32 || c1 === 9)) {            // 'f '
+      const idx = raw.trim().split(/\s+/).slice(1).map(s => { const i = parseInt(s.split('/')[0], 10); return i < 0 ? V.length / 3 + i : i - 1; });
+      if (idx.length < 3) continue;
+      if (!cur) openGroup('');
+      F.push(idx.length, ...idx); nf++;
+    } else if ((c0 === 111 || c0 === 103) && c1 === 32) {          // 'o ' / 'g '
+      openGroup(raw.slice(2).trim());
+    }
+  }
+  if (cur) cur.end = F.length;
+  if (!nf) throw new ParseError('whyObjNoFace', { v: V.length / 3 });
+  return { V: new Float32Array(V), faces: Int32Array.from(F), groups: groups.filter(g => g.end > g.start) };
+}
+
+function parsePLY(buf) {
+  const u8 = new Uint8Array(buf);
+  const hdrTxt = new TextDecoder('latin1').decode(u8.subarray(0, Math.min(u8.length, 65536)));
+  const hEnd = hdrTxt.indexOf('end_header');
+  if (hEnd < 0) throw new ParseError('whyPlyElems', { elems: [] });
+  let bodyOff = hEnd + 'end_header'.length;
+  while (bodyOff < u8.length && (u8[bodyOff] === 13 || u8[bodyOff] === 10)) bodyOff++;
+  let fmt = 'ascii'; const elems = []; let cur = null;
+  for (const ln of hdrTxt.slice(0, hEnd).split(/\r?\n/)) {
+    const p = ln.trim().split(/\s+/);
+    if (p[0] === 'format') fmt = p[1];
+    else if (p[0] === 'element') { cur = { name: p[1], n: +p[2], props: [] }; elems.push(cur); }
+    else if (p[0] === 'property' && cur) {
+      if (p[1] === 'list') cur.props.push({ list: true, ct: p[2], it: p[3], name: p[4] });
+      else cur.props.push({ list: false, t: p[1], name: p[2] });
+    }
+  }
+  if (!elems.some(e => e.name === 'vertex') || !elems.some(e => e.name === 'face'))
+    throw new ParseError('whyPlyElems', { elems: elems.map(e => `${e.name}(${e.n})`) });
+  const SZ = { char:1, int8:1, uchar:1, uint8:1, short:2, int16:2, ushort:2, uint16:2,
+               int:4, int32:4, uint:4, uint32:4, float:4, float32:4, double:8, float64:8 };
+  const V = [], F = [];
+  const take = (e, rec) => {
+    if (e.name === 'vertex') V.push(rec.x, rec.y, rec.z);
+    else if (e.name === 'face') { const f = rec.vertex_indices || rec.vertex_index; if (f && f.length >= 3) F.push(f.length, ...f); }
+  };
+  if (fmt === 'ascii') {
+    const tok = new TextDecoder().decode(u8.subarray(bodyOff)).trim().split(/\s+/); let k = 0;
+    for (const e of elems) for (let i = 0; i < e.n; i++) {
+      const rec = {};
+      for (const p of e.props) {
+        if (p.list) { const c = +tok[k++], arr = []; for (let j = 0; j < c; j++) arr.push(+tok[k++]); rec[p.name] = arr; }
+        else rec[p.name] = +tok[k++];
+      }
+      take(e, rec);
+    }
+  } else {
+    const le = fmt === 'binary_little_endian', dv = new DataView(buf); let o = bodyOff;
+    const rd = t => {
+      let v;
+      switch (t) {
+        case 'char': case 'int8': v = dv.getInt8(o); break;
+        case 'uchar': case 'uint8': v = dv.getUint8(o); break;
+        case 'short': case 'int16': v = dv.getInt16(o, le); break;
+        case 'ushort': case 'uint16': v = dv.getUint16(o, le); break;
+        case 'int': case 'int32': v = dv.getInt32(o, le); break;
+        case 'uint': case 'uint32': v = dv.getUint32(o, le); break;
+        case 'float': case 'float32': v = dv.getFloat32(o, le); break;
+        default: v = dv.getFloat64(o, le);
+      }
+      o += SZ[t]; return v;
+    };
+    for (const e of elems) for (let i = 0; i < e.n; i++) {
+      const rec = {};
+      for (const p of e.props) {
+        if (p.list) { const c = rd(p.ct), arr = new Array(c); for (let j = 0; j < c; j++) arr[j] = rd(p.it); rec[p.name] = arr; }
+        else rec[p.name] = rd(p.t);
+      }
+      take(e, rec);
+    }
+  }
+  return { V: new Float32Array(V), faces: Int32Array.from(F), groups: null };
+}
+const PARSERS = { stl: parseSTL, obj: parseOBJ, ply: parsePLY };
+
+// ── 용접 + 각도 임계 스무딩 + 격자선 ────────────────────────────────────────
+// 정점을 좌표로 용접해 면적가중 평균 법선을 만들되, 평균에서 CREASE_DEG 이상 벌어지는 코너는
+// 면 법선을 쓴다. 다각형은 부채꼴로 삼각화하고, 격자선은 삼각화 전 다각형 모서리만 모은다.
+function buildSmooth(mesh, creaseDeg) {
+  const { V, faces } = mesh;
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  // 용접
+  const nVin = V.length / 3;
+  const diag0 = (() => { let l = [Infinity,Infinity,Infinity], h = [-Infinity,-Infinity,-Infinity];
+    for (let i = 0; i < V.length; i += 3) for (let k = 0; k < 3; k++) { if (V[i+k] < l[k]) l[k] = V[i+k]; if (V[i+k] > h[k]) h[k] = V[i+k]; }
+    return Math.hypot(h[0]-l[0], h[1]-l[1], h[2]-l[2]) || 1; })();
+  const tol = diag0 * 2e-6, map = new Map(), remap = new Uint32Array(nVin), VX = []; let nV = 0;
+  for (let i = 0; i < nVin; i++) {
+    const x = V[i*3], y = V[i*3+1], z = V[i*3+2];
+    const key = Math.round(x / tol) + ',' + Math.round(y / tol) + ',' + Math.round(z / tol);
+    let j = map.get(key);
+    if (j === undefined) { j = nV++; map.set(key, j); VX.push(x, y, z); }
+    remap[i] = j;
+  }
+  // 다각형 → 삼각형(용접 인덱스) + 모서리
+  const tri = [], edgeSet = new Set(), edges = [];
+  for (let k = 0; k < faces.length;) {
+    const c = faces[k]; const idx = []; for (let j = 0; j < c; j++) idx.push(remap[faces[k + 1 + j]]); k += 1 + c;
+    for (let j = 1; j + 1 < c; j++) tri.push(idx[0], idx[j], idx[j+1]);
+    for (let j = 0; j < c; j++) {
+      const a = idx[j], b = idx[(j + 1) % c]; if (a === b) continue;
+      const kk = a < b ? a * 4294967296 + b : b * 4294967296 + a;
+      if (!edgeSet.has(kk)) { edgeSet.add(kk); edges.push(a, b); }
+    }
+  }
+  const nT = tri.length / 3;
+  const fn = new Float64Array(nT * 3), vn = new Float64Array(nV * 3), ok = new Uint8Array(nT);
+  for (let f = 0; f < nT; f++) {
+    const a = tri[f*3], b = tri[f*3+1], c = tri[f*3+2];
+    if (a === b || b === c || a === c) continue;
+    const e1 = [VX[b*3]-VX[a*3], VX[b*3+1]-VX[a*3+1], VX[b*3+2]-VX[a*3+2]];
+    const e2 = [VX[c*3]-VX[a*3], VX[c*3+1]-VX[a*3+1], VX[c*3+2]-VX[a*3+2]];
+    const n = cross(e1, e2);
+    if (Math.hypot(n[0], n[1], n[2]) < 1e-18) continue;
+    ok[f] = 1; fn[f*3] = n[0]; fn[f*3+1] = n[1]; fn[f*3+2] = n[2];
+    for (const v of [a, b, c]) { vn[v*3] += n[0]; vn[v*3+1] += n[1]; vn[v*3+2] += n[2]; }
+    for (const v of [a, b, c]) for (let k = 0; k < 3; k++) { if (VX[v*3+k] < lo[k]) lo[k] = VX[v*3+k]; if (VX[v*3+k] > hi[k]) hi[k] = VX[v*3+k]; }
+  }
+  for (let v = 0; v < nV; v++) {
+    const l = Math.hypot(vn[v*3], vn[v*3+1], vn[v*3+2]) || 1;
+    vn[v*3] /= l; vn[v*3+1] /= l; vn[v*3+2] /= l;
+  }
+  const cosT = Math.cos(creaseDeg * Math.PI / 180);
+  let nOut = 0; for (let f = 0; f < nT; f++) nOut += ok[f];
+  const pos = new Float32Array(nOut * 9), nrm = new Float32Array(nOut * 9); let w = 0;
+  for (let f = 0; f < nT; f++) {
+    if (!ok[f]) continue;
+    const l = Math.hypot(fn[f*3], fn[f*3+1], fn[f*3+2]);
+    const nf = [fn[f*3]/l, fn[f*3+1]/l, fn[f*3+2]/l];
+    for (let c = 0; c < 3; c++) {
+      const v = tri[f*3+c], nv = [vn[v*3], vn[v*3+1], vn[v*3+2]];
+      const use = dot(nf, nv) < cosT ? nf : nv;
+      pos[w] = VX[v*3]; pos[w+1] = VX[v*3+1]; pos[w+2] = VX[v*3+2];
+      nrm[w] = use[0]; nrm[w+1] = use[1]; nrm[w+2] = use[2]; w += 3;
+    }
+  }
+  const line = new Float32Array(edges.length * 3);
+  for (let i = 0; i < edges.length; i++) { const v = edges[i]; line[i*3] = VX[v*3]; line[i*3+1] = VX[v*3+1]; line[i*3+2] = VX[v*3+2]; }
+  return { pos, nrm, line, tris: nOut, edges: edges.length / 2, lo, hi };
+}
+
+// ── WebGL ───────────────────────────────────────────────────────────────────
+const cv = document.getElementById('cv'), ov = document.getElementById('ov');
+const gl = cv.getContext('webgl2', { antialias: true, preserveDrawingBuffer: true, alpha: true, premultipliedAlpha: false });
+if (!gl) document.getElementById('stage').innerHTML = '<p style="padding:40px">WebGL2 unavailable.</p>';
+const VS = `#version 300 es
+in vec3 aPos; in vec3 aNrm;
+uniform mat4 uMV, uP;
+out vec3 vN; out vec3 vV; out vec3 vM;
+void main() {
+  vM = aPos; vN = mat3(uMV) * aNrm;
+  vec4 mv = uMV * vec4(aPos, 1.0); vV = mv.xyz; gl_Position = uP * mv;
+}`;
+const FS = `#version 300 es
+precision highp float;
+in vec3 vN; in vec3 vV; in vec3 vM;
+uniform vec4 uPlanes[8]; uniform int uNP;
+uniform float uOpacity, uOrtho;
+out vec4 frag;
+void main() {
+  for (int i = 0; i < 8; i++) { if (i >= uNP) break; if (dot(vM, uPlanes[i].xyz) > uPlanes[i].w) discard; }
+  vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N;
+  vec3 V = (uOrtho > 0.5) ? vec3(0.0, 0.0, 1.0) : normalize(-vV);
+  float key  = max(dot(N, normalize(vec3( 0.35, 0.55, 0.76))), 0.0);
+  float fill = max(dot(N, normalize(vec3(-0.60,-0.15, 0.50))), 0.0);
+  float back = max(dot(N, normalize(vec3( 0.10,-0.80,-0.55))), 0.0);
+  float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.2);
+  float lum = clamp(0.40 + 0.44*key + 0.13*fill + 0.06*back - 0.30*fres, 0.06, 1.0);
+  float base = pow(uOpacity, 2.6);
+  float a = base + (1.0 - base) * fres * 0.45;
+  frag = vec4(vec3(lum), clamp(a, 0.0, 1.0));
+}`;
+function sh(t, src) {
+  const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s);
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+gl.bindAttribLocation(prog, 0, 'aPos'); gl.bindAttribLocation(prog, 1, 'aNrm'); gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw gl.getProgramInfoLog(prog);
+gl.useProgram(prog);
+const U = {}; for (const k of ['uMV','uP','uPlanes','uNP','uOpacity','uOrtho']) U[k] = gl.getUniformLocation(prog, k);
+// 격자선: 같은 절단 규칙, 단색
+const LVS = `#version 300 es
+in vec3 aPos; uniform mat4 uMV, uP; out vec3 vM;
+void main() { vM = aPos; gl_Position = uP * uMV * vec4(aPos, 1.0); }`;
+const LFS = `#version 300 es
+precision highp float; in vec3 vM; uniform vec4 uPlanes[8]; uniform int uNP; uniform vec4 uColor; out vec4 frag;
+void main() {
+  for (int i = 0; i < 8; i++) { if (i >= uNP) break; if (dot(vM, uPlanes[i].xyz) > uPlanes[i].w) discard; }
+  frag = uColor;
+}`;
+const lprog = gl.createProgram();
+gl.attachShader(lprog, sh(gl.VERTEX_SHADER, LVS)); gl.attachShader(lprog, sh(gl.FRAGMENT_SHADER, LFS));
+gl.bindAttribLocation(lprog, 0, 'aPos'); gl.linkProgram(lprog);
+if (!gl.getProgramParameter(lprog, gl.LINK_STATUS)) throw gl.getProgramInfoLog(lprog);
+const LU = {}; for (const k of ['uMV','uP','uPlanes','uNP','uColor']) LU[k] = gl.getUniformLocation(lprog, k);
+
+// ── 상태: 기본값은 한 곳, 공유되는 것과 이 화면만의 것을 나눈다 ───────────────
+const DEFAULTS = { op: 100, dims: true, wire: false, showPlane: true, planes: [], parts: null };   // 공유 (해시)
+const st = { ...DEFAULTS };                       // planes: [{n:[3], d, on}]
+let sel = -1;                                     // 이 화면만의 것 (해시에 넣지 않는다)
+let isOrtho = true, wantAlpha = false, viewName = 'iso', lastBasis = null, lastMV = null, lastP = null;
+const activePlanes = () => st.planes.filter(p => p.on);
+const plane = () => st.planes[sel];
+
+const PARTS = [];
+const scene = { lo: [0,0,0], hi: [1,1,1], ctr: [0,0,0], r: 1 };
+function upload(pos, nrm, line) {
+  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  const bp = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, bp); gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  const bn = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, bn); gl.bufferData(gl.ARRAY_BUFFER, nrm, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
+  gl.bindVertexArray(null);
+  const lvao = gl.createVertexArray(); gl.bindVertexArray(lvao);
+  const bl = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, bl); gl.bufferData(gl.ARRAY_BUFFER, line, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  gl.bindVertexArray(null);
+  return { vao, lvao, bufs: [bp, bn, bl] };
+}
+function addPart(name, mesh, on, baked) {
+  const m = buildSmooth(mesh, CREASE_DEG);
+  if (!m.tris) return null;
+  const g = upload(m.pos, m.nrm, m.line);
+  const p = { name, on, baked: !!baked, count: m.tris * 3, tris: m.tris, lcount: m.edges * 2, lo: m.lo, hi: m.hi,
+              vao: g.vao, lvao: g.lvao, bufs: g.bufs };
+  PARTS.push(p); return p;
+}
+// OBJ 의 o/g 그룹은 각각 파트로 (Fluent zone: inlet, wall_rods, …). 그룹이 없으면 파일 하나가 파트 하나.
+function addParts(name, mesh, on, baked) {
+  if (!mesh.groups || mesh.groups.length < 2) { const p = addPart(name, mesh, on, baked); return p ? [p] : []; }
+  const out = [];
+  for (const g of mesh.groups) {
+    const p = addPart(`${name} › ${g.name || '(group)'}`, { V: mesh.V, faces: mesh.faces.subarray(g.start, g.end) }, on, baked);
+    if (p) out.push(p);
+  }
+  return out;
+}
+function removePart(p) { gl.deleteVertexArray(p.vao); gl.deleteVertexArray(p.lvao); p.bufs.forEach(b => gl.deleteBuffer(b)); PARTS.splice(PARTS.indexOf(p), 1); }
+function bboxCorners() {
+  const c = [];
+  for (let i = 0; i < 8; i++)
+    c.push([(i & 1) ? scene.hi[0] : scene.lo[0], (i & 2) ? scene.hi[1] : scene.lo[1], (i & 4) ? scene.hi[2] : scene.lo[2]]);
+  return c;
+}
+function updateScene() {
+  const vis = PARTS.filter(p => p.on), src = vis.length ? vis : PARTS;
+  if (!src.length) { scene.lo = [0,0,0]; scene.hi = [1,1,1]; }
+  else {
+    scene.lo = [Infinity, Infinity, Infinity]; scene.hi = [-Infinity, -Infinity, -Infinity];
+    for (const p of src) for (let k = 0; k < 3; k++) { scene.lo[k] = Math.min(scene.lo[k], p.lo[k]); scene.hi[k] = Math.max(scene.hi[k], p.hi[k]); }
+  }
+  scene.ctr = [0,1,2].map(k => (scene.lo[k] + scene.hi[k]) / 2);
+  scene.r = Math.max(...[0,1,2].map(k => scene.hi[k] - scene.lo[k])) / 2 || 1;
+  document.getElementById('dxyz').textContent = src.length ? [0,1,2].map(k => (scene.hi[k] - scene.lo[k]).toFixed(2)).join(' × ') : '';
+  document.getElementById('tricount').textContent = T().tri(vis.reduce((s, p) => s + p.tris, 0));
+  renderPlanes(); loadEditor(); persist();
+}
+function renderList() {
+  const box = document.getElementById('parts'); box.innerHTML = '';
+  for (const p of PARTS) {
+    const l = document.createElement('label'); l.className = 'pick';
+    l.innerHTML = `<input type="checkbox" ${p.on ? 'checked' : ''}><span class="nm"></span><span class="cnt"></span>
+      <button class="rm" type="button"><svg viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button>`;
+    l.querySelector('.nm').textContent = p.name; l.querySelector('.nm').title = p.name;
+    l.querySelector('.cnt').textContent = p.tris.toLocaleString();
+    l.querySelector('.rm').title = T().tipClose;
+    l.querySelector('input').onchange = e => { p.on = e.target.checked; updateScene(); draw(); };
+    l.querySelector('.rm').onclick = e => { e.preventDefault(); removePart(p); renderList(); updateScene(); fitView(); draw(); };
+    box.appendChild(l);
+  }
+}
+
+// ── 카메라 ──────────────────────────────────────────────────────────────────
+const FOV = 0.62;
+// 카메라는 각도가 아니라 기저 [오른쪽, 위, 뒤] 로 든다. 각도(az/el) 방식은 ±Y 정면에서
+// 짐벌락이 걸려 드래그가 화면축 회전으로 변하고 up 벡터가 튄다. 기저를 화면축 기준으로
+// 돌리면 어느 방향에서도 같은 손맛이다.
+const cam = { R: null, dist: 10, tgt: [0,0,0] };
+function basisFrom(z, up) { const zz = norm(z), x = norm(cross(up, zz)); return [x, cross(zz, x), zz]; }
+function rotAbout(v, a, t) {          // Rodrigues: 단위축 a 둘레로 t 만큼
+  const c = Math.cos(t), sn = Math.sin(t), k = dot(a, v) * (1 - c), ax = cross(a, v);
+  return [v[0]*c + ax[0]*sn + a[0]*k, v[1]*c + ax[1]*sn + a[1]*k, v[2]*c + ax[2]*sn + a[2]*k];
+}
+function orbit(dx, dy) {              // dx: 화면 위축 둘레, dy: 화면 오른쪽축 둘레
+  let [x, y, z] = cam.R;
+  z = rotAbout(z, y, -dx); x = rotAbout(x, y, -dx);
+  z = rotAbout(z, x, -dy); y = rotAbout(y, x, -dy);
+  cam.R = basisFrom(z, y);            // 재직교화
+}
+function camBasis() { return cam.R; }
+function fitView() {
+  cam.tgt = scene.ctr.slice();
+  const [bx, by] = camBasis(); let hx = 0, hy = 0;
+  for (const p of bboxCorners()) { const d = sub(p, cam.tgt); hx = Math.max(hx, Math.abs(dot(d, bx))); hy = Math.max(hy, Math.abs(dot(d, by))); }
+  const asp = Math.max(cv.clientWidth / cv.clientHeight, 0.2) || 1.5;
+  cam.dist = Math.max(hy, hx / asp, scene.r * 0.05) * 1.22 / Math.tan(FOV / 2);
+}
+function drawGL(w, h, clearAlpha) {
+  gl.viewport(0, 0, w, h); gl.clearColor(1, 1, 1, clearAlpha ? 0 : 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  const [bx, by, bz] = cam.R, eye = add(cam.tgt, mul(bz, cam.dist));
+  const L = look(eye, cam.tgt, by); lastBasis = L.basis; lastMV = L.m;
+  const R = scene.r, asp = w / h, far = cam.dist + 20 * R;
+  lastP = isOrtho ? ortho(cam.dist * Math.tan(FOV / 2), asp, -20 * R, far) : persp(FOV, asp, Math.max(0.01 * R, cam.dist - 20 * R), far);
+  gl.useProgram(prog);
+  gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1.0, 1.0);
+  gl.uniformMatrix4fv(U.uMV, false, L.m); gl.uniformMatrix4fv(U.uP, false, lastP);
+  const act = activePlanes().slice(0, 8), arr = new Float32Array(32);
+  act.forEach((p, i) => arr.set([p.n[0], p.n[1], p.n[2], p.d], i * 4));
+  gl.uniform4fv(U.uPlanes, arr); gl.uniform1i(U.uNP, act.length);
+  const op = st.op / 100;
+  gl.uniform1f(U.uOpacity, op); gl.uniform1f(U.uOrtho, isOrtho ? 1 : 0);
+  gl.enable(gl.DEPTH_TEST);
+  const vis = PARTS.filter(p => p.on);
+  if (op >= 0.995) {
+    gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE); gl.depthMask(true);
+    for (const p of vis) { gl.bindVertexArray(p.vao); gl.drawArrays(gl.TRIANGLES, 0, p.count); }
+  } else {
+    gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false); gl.enable(gl.CULL_FACE);
+    for (const p of vis) {
+      gl.bindVertexArray(p.vao);
+      gl.cullFace(gl.FRONT); gl.drawArrays(gl.TRIANGLES, 0, p.count);
+      gl.cullFace(gl.BACK);  gl.drawArrays(gl.TRIANGLES, 0, p.count);
+    }
+    gl.depthMask(true); gl.disable(gl.CULL_FACE); gl.disable(gl.BLEND);
+  }
+  if (st.wire) {                       // 면을 살짝 뒤로 밀어 두고 그 위에 선
+    gl.useProgram(lprog);
+    gl.uniformMatrix4fv(LU.uMV, false, L.m); gl.uniformMatrix4fv(LU.uP, false, lastP);
+    gl.uniform4fv(LU.uPlanes, arr); gl.uniform1i(LU.uNP, act.length);
+    gl.uniform4f(LU.uColor, 0.082, 0.094, 0.11, 0.85);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthFunc(gl.LEQUAL); gl.depthMask(false);
+    for (const p of vis) { gl.bindVertexArray(p.lvao); gl.drawArrays(gl.LINES, 0, p.lcount); }
+    gl.depthMask(true); gl.depthFunc(gl.LESS); gl.disable(gl.BLEND);
+    gl.useProgram(prog);
+  }
+  gl.bindVertexArray(null);
+}
+
+// ── 2D 오버레이: 치수선 · 절단면 윤곽(+라벨) · 빈 상태 ─────────────────────────
+const INK = '#15181c', ACC = '#0f4c81';
+const FONT = () => getComputedStyle(document.body).fontFamily;
+function project(p, w, h) {
+  const c = xform(lastP, xform(lastMV, p));
+  return [(c[0] / c[3] * 0.5 + 0.5) * w, (0.5 - c[1] / c[3] * 0.5) * h];
+}
+function drawOverlay(ctx, w, h, k, light) {
+  ctx.clearRect(0, 0, w, h);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (!PARTS.some(p => p.on)) {                     // 두 상태, 두 문장
+    ctx.fillStyle = INK; ctx.font = `520 ${15 * k}px ${FONT()}`;
+    ctx.fillText(PARTS.length ? T().emptyAllOff : T().emptyNone, w / 2, h / 2);
+    return;
+  }
+  if (!lastMV) return;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (st.showPlane) for (const p of activePlanes()) drawPlaneOutline(ctx, w, h, k, p, p === plane());
+  if (st.dims && !light) drawDims(ctx, w, h, k);
+}
+function drawDims(ctx, w, h, k) {
+  const C = bboxCorners().map(p => project(p, w, h));
+  const cen = [C.reduce((s, p) => s + p[0], 0) / 8, C.reduce((s, p) => s + p[1], 0) / 8];
+  const OFF = 34 * k, EXT = 7 * k, AR = 7 * k;
+  ctx.font = `520 ${12.5 * k}px ${FONT()}`;
+  for (let ax = 0; ax < 3; ax++) {
+    const bit = 1 << ax; let best = null, bestD = -1;
+    for (let i = 0; i < 8; i++) {
+      if (i & bit) continue;
+      const a = C[i], b = C[i | bit], m = [(a[0]+b[0])/2, (a[1]+b[1])/2];
+      const d = Math.hypot(m[0]-cen[0], m[1]-cen[1]);
+      if (d > bestD) { bestD = d; best = [a, b, m]; }
+    }
+    if (!best) continue;
+    const [a, b, m] = best, v = [b[0]-a[0], b[1]-a[1]], L = Math.hypot(v[0], v[1]);
+    if (!(L >= 14 * k)) continue;                     // 화면을 향한 축은 edge-on — 숨긴다
+    let per = [-v[1] / L, v[0] / L];
+    if ((m[0]-cen[0]) * per[0] + (m[1]-cen[1]) * per[1] < 0) per = [-per[0], -per[1]];
+    const a2 = [a[0] + per[0]*OFF, a[1] + per[1]*OFF], b2 = [b[0] + per[0]*OFF, b[1] + per[1]*OFF];
+    const u = [v[0] / L, v[1] / L];
+    ctx.strokeStyle = INK; ctx.fillStyle = INK; ctx.lineWidth = 1.1 * k;
+    ctx.beginPath();
+    ctx.moveTo(a[0] + per[0]*3*k, a[1] + per[1]*3*k); ctx.lineTo(a2[0] + per[0]*EXT, a2[1] + per[1]*EXT);
+    ctx.moveTo(b[0] + per[0]*3*k, b[1] + per[1]*3*k); ctx.lineTo(b2[0] + per[0]*EXT, b2[1] + per[1]*EXT);
+    ctx.moveTo(a2[0], a2[1]); ctx.lineTo(b2[0], b2[1]); ctx.stroke();
+    for (const [p, s] of [[a2, 1], [b2, -1]]) {
+      ctx.beginPath(); ctx.moveTo(p[0], p[1]);
+      ctx.lineTo(p[0] + s*u[0]*AR - per[0]*AR*0.38, p[1] + s*u[1]*AR - per[1]*AR*0.38);
+      ctx.lineTo(p[0] + s*u[0]*AR + per[0]*AR*0.38, p[1] + s*u[1]*AR + per[1]*AR*0.38);
+      ctx.closePath(); ctx.fill();
+    }
+    const txt = (scene.hi[ax] - scene.lo[ax]).toFixed(2), tw = ctx.measureText(txt).width;
+    const tm = [(a2[0]+b2[0])/2 + per[0]*11*k, (a2[1]+b2[1])/2 + per[1]*11*k];
+    ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.fillRect(tm[0] - tw/2 - 3*k, tm[1] - 8*k, tw + 6*k, 16*k);
+    ctx.fillStyle = INK; ctx.fillText(txt, tm[0], tm[1] + 0.5*k);
+  }
+}
+function planeLhs(p) {
+  const ax = [0,1,2].find(k => Math.abs(Math.abs(p.n[k]) - 1) < 1e-6);
+  return ax !== undefined ? (p.n[ax] < 0 ? '−' : '') + 'xyz'[ax] : '(' + p.n.map(v => v.toFixed(2)).join(', ') + ')·p';
+}
+function drawPlaneOutline(ctx, w, h, k, pl, hot) {
+  const n = pl.n, d = pl.d, pts = [], BC = bboxCorners();
+  for (let i = 0; i < 8; i++) for (const bit of [1, 2, 4]) {
+    if (i & bit) continue;
+    const A = BC[i], B = BC[i | bit], da = dot(A, n) - d, db = dot(B, n) - d;
+    if ((da <= 0) !== (db <= 0)) { const t = da / (da - db); pts.push(add(A, mul(sub(B, A), t))); }
+  }
+  if (pts.length < 3) return;
+  const c = pts.reduce((s, p) => add(s, p), [0,0,0]).map(v => v / pts.length);
+  const e1 = norm(cross(n, Math.abs(n[0]) < 0.9 ? [1,0,0] : [0,1,0])), e2 = cross(n, e1);
+  pts.sort((p, q) => Math.atan2(dot(sub(p, c), e2), dot(sub(p, c), e1)) - Math.atan2(dot(sub(q, c), e2), dot(sub(q, c), e1)));
+  const S = pts.map(p => project(p, w, h));
+  ctx.beginPath(); S.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath();
+  ctx.fillStyle = hot ? 'rgba(15,76,129,.09)' : 'rgba(15,76,129,.04)'; ctx.fill();
+  ctx.setLineDash([6*k, 4*k]); ctx.strokeStyle = hot ? 'rgba(15,76,129,.9)' : 'rgba(15,76,129,.45)';
+  ctx.lineWidth = (hot ? 1.4 : 1.0) * k; ctx.stroke(); ctx.setLineDash([]);
+  // 라벨은 그림 안에. 다각형이 화면에서 14px 보다 작으면(edge-on) 숨긴다
+  const xs = S.map(p => p[0]), ys = S.map(p => p[1]);
+  if (Math.max(...xs) - Math.min(...xs) < 14 * k || Math.max(...ys) - Math.min(...ys) < 14 * k) return;
+  ctx.font = `520 ${12 * k}px ${FONT()}`;
+  const txt = T().planeLabel(planeLhs(pl), pl.d), sc = project(c, w, h), tw = ctx.measureText(txt).width;
+  ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fillRect(sc[0] - tw/2 - 4*k, sc[1] - 8*k, tw + 8*k, 16*k);
+  ctx.fillStyle = ACC; ctx.fillText(txt, sc[0], sc[1] + 0.5*k);
+}
+
+// ── 그리기: 드래그 중엔 가볍게, 멈추면 LIGHT_MS 뒤 전체 품질 ───────────────────
+let lightT = null;
+function draw(light) {
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (!w || !h) return;
+  const dpr = light ? 1 : Math.min(devicePixelRatio, 2);
+  const W = Math.round(w*dpr), Hh = Math.round(h*dpr);
+  if (cv.width !== W || cv.height !== Hh) { cv.width = W; cv.height = Hh; }
+  if (ov.width !== W || ov.height !== Hh) { ov.width = W; ov.height = Hh; }
+  drawGL(W, Hh, false); drawOverlay(ov.getContext('2d'), W, Hh, dpr, light); drawTriad();
+  clearTimeout(lightT);
+  if (light) lightT = setTimeout(() => draw(false), LIGHT_MS);
+}
+const tc = document.getElementById('triad'), t2 = tc.getContext('2d');
+function drawTriad() {
+  if (!lastBasis) return;
+  const S = tc.width, c = S / 2, R = S * 0.34;
+  t2.clearRect(0, 0, S, S);
+  t2.font = `600 26px ${FONT()}`; t2.textAlign = 'center'; t2.textBaseline = 'middle';
+  const [bx, by, bz] = lastBasis;
+  const ax = [[[1,0,0],'x'], [[0,1,0],'y'], [[0,0,1],'z']].map(([v, n]) => ({ n, x: dot(v, bx), y: dot(v, by), z: dot(v, bz) })).sort((p, q) => p.z - q.z);
+  for (const a of ax) {
+    const X = c + a.x * R, Y = c - a.y * R;
+    t2.globalAlpha = 0.45 + 0.55 * (a.z + 1) / 2;
+    t2.strokeStyle = INK; t2.lineWidth = 2.6; t2.beginPath(); t2.moveTo(c, c); t2.lineTo(X, Y); t2.stroke();
+    t2.fillStyle = '#fff'; t2.beginPath(); t2.arc(X, Y, 13, 0, 7); t2.fill(); t2.lineWidth = 2; t2.stroke();
+    t2.fillStyle = INK; t2.fillText(a.n, X, Y + 1);
+  }
+  t2.globalAlpha = 1;
+}
+
+// ── 숫자 필드 + 슬라이더 쌍 ──────────────────────────────────────────────────
+// 숫자 칸은 슬라이더 범위 밖도 받는다(핸들만 멈춘다), ↑↓ 에 Shift 면 ×10, 포커스 중엔 덮어쓰지 않는다.
+function paintSlider(el) {
+  const p = clamp((+el.value - +el.min) / (+el.max - +el.min) * 100, 0, 100);
+  el.style.background = `linear-gradient(to right, var(--accent) 0 ${p}%, var(--sunk) ${p}% 100%)`;
+}
+function pair(rangeEl, numEl, get, set, fmt) {
+  const show = () => {
+    const v = get();
+    rangeEl.value = clamp(v, +rangeEl.min, +rangeEl.max); paintSlider(rangeEl);
+    if (document.activeElement !== numEl) numEl.value = fmt ? fmt(v) : v;
+  };
+  rangeEl.oninput = () => { set(+rangeEl.value); show(); };
+  numEl.onchange = () => { const v = +numEl.value; if (Number.isFinite(v)) set(v); show(); };
+  numEl.onkeydown = e => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const step = (+numEl.step || 1) * (e.shiftKey ? 10 : 1), v = (+numEl.value || 0) + (e.key === 'ArrowUp' ? step : -step);
+    numEl.value = fmt ? fmt(v) : v; set(v); show();
+  };
+  return show;
+}
+
+// ── 단면 ────────────────────────────────────────────────────────────────────
+const planeBox = document.getElementById('planes'), cutV = document.getElementById('cutv');
+function dRange(n) {
+  let dmin = Infinity, dmax = -Infinity;
+  for (const c of bboxCorners()) { const v = dot(c, n); dmin = Math.min(dmin, v); dmax = Math.max(dmax, v); }
+  return [dmin, dmax];
+}
+function planeText(p) {
+  if (!p.on) return T().planeOff;
+  if (p.d >= dRange(p.n)[1]) return T().planeNoCut;
+  return T().planeLabel(planeLhs(p), p.d);
+}
+function renderPlanes() {
+  planeBox.innerHTML = '';
+  st.planes.forEach((p, i) => {
+    const r = document.createElement('div');
+    r.className = 'prow' + (i === sel ? ' sel' : '') + (p.on ? '' : ' off');
+    r.innerHTML = `<input type="checkbox" ${p.on ? 'checked' : ''}><span class="pl"></span>
+      <button class="rm" type="button"><svg viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button>`;
+    r.querySelector('input').title = T().tipPlaneOn; r.querySelector('.rm').title = T().tipRemove;
+    r.querySelector('.pl').textContent = `${i + 1}. ${planeText(p)}`;
+    r.onclick = () => { sel = i; loadEditor(); renderPlanes(); draw(); };
+    r.querySelector('input').onclick = e => { e.stopPropagation(); p.on = e.target.checked; renderPlanes(); persist(); draw(); };
+    r.querySelector('.rm').onclick = e => { e.stopPropagation(); st.planes.splice(i, 1); sel = Math.min(sel, st.planes.length - 1); loadEditor(); renderPlanes(); persist(); draw(); };
+    planeBox.appendChild(r);
+  });
+  cutV.textContent = T().cutCount(activePlanes().length);
+}
+const cutRange = document.getElementById('cut'), cutNum = document.getElementById('cutN');
+const nRange = ['nx','ny','nz'].map(id => document.getElementById(id)), nNum = ['nxN','nyN','nzN'].map(id => document.getElementById(id));
+let cutLo = 0, cutHi = 1;
+// 위치: 슬라이더는 법선 방향으로 모델이 걸치는 구간 [lo, hi] 를 0..1 로, 숫자 칸은 절대값 mm
+const showCut = pair(cutRange, cutNum,
+  () => { const p = plane(); if (!p) return 1; [cutLo, cutHi] = dRange(p.n); return (p.d - cutLo) / (cutHi - cutLo || 1); },
+  f => { const p = ensurePlane(); p.d = cutLo + (cutHi - cutLo) * f; renderPlanes(); persist(); draw(); },
+  f => (cutLo + (cutHi - cutLo) * f).toFixed(1));
+cutNum.onchange = () => { const v = +cutNum.value; if (!Number.isFinite(v)) return; const p = ensurePlane(); p.d = v; renderPlanes(); persist(); draw(); showCut(); };
+cutNum.onkeydown = e => {
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+  e.preventDefault(); const p = ensurePlane(), step = (+cutNum.step || 1) * (e.shiftKey ? 10 : 1);
+  p.d += e.key === 'ArrowUp' ? step : -step; cutNum.value = p.d.toFixed(1); renderPlanes(); persist(); draw(); showCut();
+};
+const showN = [0,1,2].map(i => pair(nRange[i], nNum[i],
+  () => { const p = plane(); return p ? +p.n[i].toFixed(3) : [0,1,0][i]; },
+  v => { const p = ensurePlane(), n = p.n.slice(); n[i] = v; setNormal(n, true, i); },
+  v => (+v).toFixed(2)));
+function loadEditor() { showCut(); showN.forEach(f => f()); }
+function ensurePlane() { if (!plane()) addPlane([0, 1, 0], true); return plane(); }
+function addPlane(n, atEnd) {
+  const nn = norm(n || [0, 1, 0]), [lo, hi] = dRange(nn);
+  st.planes.push({ n: nn, d: atEnd ? hi : (lo + hi) / 2, on: true });     // 새 단면은 중간에서 시작해야 뭐가 잘리는지 보인다
+  sel = st.planes.length - 1; loadEditor(); renderPlanes(); persist(); draw();
+}
+function setNormal(n, keepPos, focusIdx) {
+  if (Math.hypot(n[0], n[1], n[2]) < 1e-9) return;
+  const p = ensurePlane(), old = dRange(p.n), f = clamp((p.d - old[0]) / (old[1] - old[0] || 1), 0, 1);
+  p.n = norm(n);
+  const [lo, hi] = dRange(p.n);
+  p.d = keepPos ? lo + (hi - lo) * f : (lo + hi) / 2;
+  showCut(); showN.forEach((g, i) => { if (i !== focusIdx || document.activeElement !== nNum[i]) g(); });
+  renderPlanes(); persist(); draw();
+}
+document.getElementById('addPlane').onclick = () => addPlane([0, 1, 0]);
+document.querySelectorAll('[data-n]').forEach(b => b.onclick = () => setNormal(b.dataset.n.split(',').map(Number), false));
+document.getElementById('nView').onclick = () => { if (lastBasis) setNormal(lastBasis[2], false); };
+document.getElementById('nFlip').onclick = () => {
+  const p = ensurePlane(); p.n = mul(p.n, -1); p.d = -p.d;                 // 같은 평면, 남기는 쪽만 반대
+  loadEditor(); renderPlanes(); persist(); draw();
+};
+
+// ── 표시 컨트롤 ─────────────────────────────────────────────────────────────
+const showOp = pair(document.getElementById('op'), document.getElementById('opN'),
+  () => st.op, v => { st.op = clamp(v, 0, 100); persist(); draw(); }, v => Math.round(v));
+document.getElementById('dims').onchange = e => { st.dims = e.target.checked; persist(); draw(); };
+document.getElementById('wire').onchange = e => { st.wire = e.target.checked; persist(); draw(); };
+document.getElementById('showPlane').onchange = e => { st.showPlane = e.target.checked; persist(); draw(); };
+// [카메라가 놓이는 방향(뒤 벡터), 화면 위쪽]
+const ISO_Z = [Math.sin(0.92) * Math.cos(0.40), Math.sin(0.40), Math.cos(0.92) * Math.cos(0.40)];
+const VIEWS = { '+x': [[1,0,0],[0,1,0]], '-x': [[-1,0,0],[0,1,0]], '+z': [[0,0,1],[0,1,0]], '-z': [[0,0,-1],[0,1,0]],
+                '+y': [[0,1,0],[0,0,-1]], '-y': [[0,-1,0],[0,0,1]], 'iso': [ISO_Z, [0,1,0]] };
+cam.R = basisFrom(...VIEWS.iso);
+document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => {
+  cam.R = basisFrom(...VIEWS[b.dataset.v]); viewName = b.dataset.v;
+  if (b.dataset.v !== 'iso') setProj(true);
+  fitView(); draw();
+});
+function setProj(o) {
+  isOrtho = o;
+  document.querySelectorAll('#projSeg button').forEach(b => b.classList.toggle('on', (b.dataset.p === '1') === o));
+}
+document.querySelectorAll('#projSeg button').forEach(b => b.onclick = () => { setProj(b.dataset.p === '1'); draw(); });
+
+// ── 입력 ────────────────────────────────────────────────────────────────────
+let drag = null;
+cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, pan: e.shiftKey || e.button === 2 }; cv.classList.add('drag'); cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointerup', () => { drag = null; cv.classList.remove('drag'); draw(false); });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+  if (drag.pan && lastBasis) {
+    const k = cam.dist * Math.tan(FOV / 2) * 2 / cv.clientHeight, [bx, by] = lastBasis;
+    for (let i = 0; i < 3; i++) cam.tgt[i] += (-dx * bx[i] + dy * by[i]) * k;
+  } else { orbit(dx * 0.0068, dy * 0.0068); viewName = 'free'; }
+  draw(true);
+});
+cv.addEventListener('wheel', e => { e.preventDefault(); cam.dist = clamp(cam.dist * Math.exp(e.deltaY * 0.0012), scene.r * 0.05, scene.r * 40); draw(true); }, { passive: false });
+
+// ── 상태 문구: {key, args} 로 보관, 렌더 때 언어를 입힌다 ─────────────────────
+const statusEl = document.getElementById('status'); let statusT = null, statusMsg = null;
+function status(key, args, opt) {
+  statusMsg = { key, args, bad: !!(opt && opt.bad) }; renderStatus();
+  statusEl.classList.add('on'); clearTimeout(statusT);
+  if (!(opt && opt.keep)) statusT = setTimeout(() => statusEl.classList.remove('on'), 3200);
+}
+function renderStatus() {
+  if (!statusMsg) return;
+  const s = T()[statusMsg.key];
+  statusEl.textContent = typeof s === 'function' ? s(statusMsg.args) : s;
+  statusEl.classList.toggle('bad', statusMsg.bad);
+}
+function whyOf(err) {
+  if (err instanceof ParseError) return T()[err.key](err.args);
+  return err && err.message ? err.message : String(err);
+}
+
+// ── 파일 열기 ───────────────────────────────────────────────────────────────
+async function openFiles(files) {
+  let added = 0;
+  for (const f of files) {
+    const ext = f.name.split('.').pop().toLowerCase(), parse = PARSERS[ext];
+    if (!parse) { status('stUnsupported', { name: f.name, ext }, { bad: true, keep: true }); continue; }
+    if (f.size > MAX_FILE_MB * 1e6) { status('stTooBig', { name: f.name, mb: (f.size / 1e6).toFixed(0) }, { bad: true, keep: true }); continue; }
+    status('stReading', { name: f.name }, { keep: true });
+    await new Promise(r => setTimeout(r, 15));
+    try {
+      const ps = addParts(f.name, parse(await f.arrayBuffer()), true, false);
+      if (ps.length) { added++; status('stLoaded', { name: f.name, n: ps.reduce((s, p) => s + p.tris, 0), groups: ps.length }); }
+      else status('stNoTris', { name: f.name, why: T().whyDegenerate }, { bad: true, keep: true });
+    } catch (err) { status('stFail', { name: f.name, why: whyOf(err) }, { bad: true, keep: true }); console.error(err); }
+  }
+  if (added) { renderList(); updateScene(); fitView(); draw(); }
+}
+document.getElementById('open').onclick = () => document.getElementById('file').click();
+document.getElementById('file').onchange = e => { openFiles([...e.target.files]); e.target.value = ''; };
+const dropEl = document.getElementById('drop'); let dragDepth = 0;
+addEventListener('dragenter', e => { e.preventDefault(); if (++dragDepth === 1) dropEl.classList.add('on'); });
+addEventListener('dragleave', e => { e.preventDefault(); if (--dragDepth <= 0) { dragDepth = 0; dropEl.classList.remove('on'); } });
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', e => { e.preventDefault(); dragDepth = 0; dropEl.classList.remove('on'); openFiles([...e.dataTransfer.files]); });
+
+// ── 저장 ────────────────────────────────────────────────────────────────────
+document.getElementById('alpha').onchange = e => { wantAlpha = e.target.checked; };
+document.getElementById('save').onclick = () => {
+  const ow = cv.width, oh = cv.height, S = 3;
+  const W = Math.round(cv.clientWidth * S), Hh = Math.round(cv.clientHeight * S);
+  cv.width = W; cv.height = Hh; drawGL(W, Hh, wantAlpha);
+  const out = document.createElement('canvas'); out.width = W; out.height = Hh;
+  const ctx = out.getContext('2d'); ctx.drawImage(cv, 0, 0);
+  const o2 = document.createElement('canvas'); o2.width = W; o2.height = Hh;
+  drawOverlay(o2.getContext('2d'), W, Hh, S, false); ctx.drawImage(o2, 0, 0);
+  const url = out.toDataURL('image/png');
+  cv.width = ow; cv.height = oh; draw();
+  const nm = PARTS.filter(p => p.on).map(p => p.name.replace(/\.[^.]+$/, '')).join('+') || 'cad';
+  shot = { url, name: `${nm}_${viewName}_${isOrtho ? 'ortho' : 'persp'}.png`, w: W, h: Hh, canvas: out };
+  shotImg.src = url; shotImg.alt = shot.name; shotEl.classList.add('on');
+  if (!EMBEDDED) shotDl.click();       // 최상위 창에서는 바로 받아진다. iframe 안이면 시도해도 조용히 무시되므로 하지 않는다
+};
+// iframe(앱 안 미리보기) 은 <a download> 를 조용히 버린다 — 있는지 없는지 알 수 없는 게 아니라 "막힌다"고 말해야 한다
+const EMBEDDED = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+// 앱 안 미리보기처럼 <a download> 가 무시되는 창이 있다. 그래서 그림을 화면에 띄워
+// 우클릭 저장·클립보드 복사라는 우회로를 같이 준다.
+let shot = null;
+const shotEl = document.getElementById('shot'), shotImg = document.getElementById('shotImg'), shotDl = document.getElementById('shotDl');
+shotDl.onclick = () => {
+  if (!shot) return;
+  if (EMBEDDED) { status('stDlBlocked', null, { bad: true, keep: true }); return; }
+  const a = document.createElement('a'); a.href = shot.url; a.download = shot.name; a.click();
+};
+if (EMBEDDED) {                        // 되는 버튼을 앞에, 안 되는 버튼은 보조로
+  const copyBtn = document.getElementById('shotCopy');
+  copyBtn.classList.add('primary'); shotDl.classList.remove('primary');
+  shotDl.parentNode.insertBefore(copyBtn, shotDl);
+}
+document.getElementById('shotCopy').onclick = async () => {
+  if (!shot) return;
+  try {
+    const blob = await new Promise(r => shot.canvas.toBlob(r, 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    status('stShotCopied', { w: shot.w, h: shot.h });
+  } catch (e) { status('stShotCopyFail', null, { bad: true }); }
+};
+document.getElementById('shotClose').onclick = () => shotEl.classList.remove('on');
+shotEl.addEventListener('click', e => { if (e.target === shotEl) shotEl.classList.remove('on'); });
+addEventListener('keydown', e => { if (e.key === 'Escape') shotEl.classList.remove('on'); });
+
+// ── 공유 상태: URL 해시 (k=v&…), 없으면 저장소. 카메라·선택은 넣지 않는다 ────────
+function encodeState() {
+  const q = new URLSearchParams();
+  q.set('op', st.op); q.set('dims', st.dims ? 1 : 0); q.set('wire', st.wire ? 1 : 0); q.set('pl', st.showPlane ? 1 : 0);
+  if (st.planes.length) q.set('cut', st.planes.map(p => [...p.n.map(v => +v.toFixed(4)), +p.d.toFixed(3), p.on ? 1 : 0].join(',')).join(';'));
+  const baked = PARTS.filter(p => p.baked); if (baked.length) q.set('parts', baked.map(p => p.on ? 1 : 0).join(''));
+  return q.toString();
+}
+function decodeState(s) {
+  const q = new URLSearchParams(s), o = {};
+  if (q.has('op')) o.op = clamp(+q.get('op') || 0, 0, 100);
+  if (q.has('dims')) o.dims = q.get('dims') === '1';
+  if (q.has('wire')) o.wire = q.get('wire') === '1';
+  if (q.has('pl')) o.showPlane = q.get('pl') === '1';
+  if (q.has('cut')) o.planes = q.get('cut').split(';').map(t => t.split(',').map(Number)).filter(a => a.length === 5 && a.every(Number.isFinite))
+    .map(a => ({ n: norm(a.slice(0, 3)), d: a[3], on: a[4] === 1 })).slice(0, 8);
+  if (q.has('parts')) o.parts = q.get('parts').split('').map(c => c === '1');
+  return o;
+}
+let persistT = null;
+/* Write the state into the URL fragment.  replaceState is preferred (no history
+   entry per slider move), but inside a sandboxed srcdoc frame - claude.ai
+   artifacts, some embeds - it throws SecurityError because the frame's URL is
+   about:srcdoc.  A plain fragment assignment is allowed there, so fall back to
+   it; and never let the URL write block the localStorage write. */
+function setHash(s) {
+  try { history.replaceState(null, '', '#' + s); return; } catch (e) {}
+  try { location.hash = s; } catch (e) {}
+}
+function persist() {
+  clearTimeout(persistT);
+  persistT = setTimeout(() => { const s = encodeState(); store.set('state', s); setHash(s); }, 120);
+}
+document.getElementById('share').onclick = async () => {
+  setHash(encodeState());
+  try { await navigator.clipboard.writeText(location.href); status('stCopied'); }
+  catch (e) { status('stCopyFail', null, { bad: true }); }
+};
+function applyState(o) {
+  Object.assign(st, { ...DEFAULTS, ...o, planes: (o.planes || []).map(p => ({ ...p })) });
+  if (o.parts) PARTS.filter(p => p.baked).forEach((p, i) => { if (i < o.parts.length) p.on = o.parts[i]; });
+  sel = st.planes.length ? 0 : -1;
+  document.getElementById('dims').checked = st.dims; document.getElementById('wire').checked = st.wire; document.getElementById('showPlane').checked = st.showPlane;
+  showOp();
+}
+
+// ── 시작 ────────────────────────────────────────────────────────────────────
+function bytes(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
+for (const b of BAKED) {
+  const q = new Int16Array(bytes(b.pos).buffer), soup = new Float32Array(q.length);
+  for (let i = 0; i < q.length; i++) soup[i] = BAKED_CTR[i % 3] + q[i] * BAKED_QS;
+  addPart(b.label, triSoup(soup), b.on, true);
+}
+document.getElementById('langBtn').onclick = () => setLang(lang === 'ko' ? 'en' : 'ko');
+lang = store.get('lang') || ((navigator.language || '').startsWith('ko') ? 'ko' : 'en');
+setProj(true);
+applyState(decodeState(location.hash.slice(1) || store.get('state') || ''));
+setLang(lang);                    // 문자열 → renderList/updateScene/draw 까지
+addEventListener('resize', () => draw());
+fitView(); draw();
+</script>

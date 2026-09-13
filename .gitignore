@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+# 변환 결과물은 저장소에 넣지 않는다 (크다). 배포할 예제만 examples/ 에 손으로 넣는다.
+*.stl
+*.obj
+*.msh
+*.cas
+*.h5
+*.hdf
+*.step
+*.stp
+*.iges
+*.igs
+*.brep
+!examples/*
