@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- CAD 3D Viewer 아이콘: 등각 큐브 + 절단면 + 치수선. 손그림 선 아이콘, 액센트 네이비 단색. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#eef2f7"/>
+    </linearGradient>
+    <linearGradient id="cut" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0f4c81" stop-opacity=".22"/><stop offset="1" stop-color="#0f4c81" stop-opacity=".08"/>
+    </linearGradient>
+    <filter id="sh" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.2" flood-color="#181f2a" flood-opacity=".18"/>
+    </filter>
+  </defs>
+  <rect x="4" y="4" width="88" height="88" rx="22" fill="url(#bg)" filter="url(#sh)"/>
+  <g fill="none" stroke="#0f4c81" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <!-- 큐브 (등각): 위 마름모, 좌·우 면 -->
+    <path d="M48 18 L72 31 L48 44 L24 31 Z"/>
+    <path d="M24 31 V57 L48 70 V44"/>
+    <path d="M72 31 V57 L48 70"/>
+    <!-- 뒤쪽 숨은 모서리 (얇게) -->
+    <path d="M24 57 L48 44 L72 57" stroke-width="1.6" stroke-opacity=".35"/>
+  </g>
+  <!-- 절단면: 큐브를 비스듬히 지나는 평행사변형 -->
+  <path d="M30 38 L66 30 L66 52 L30 60 Z" fill="url(#cut)" stroke="#0f4c81" stroke-width="2" stroke-dasharray="4 3" stroke-linejoin="round"/>
+  <!-- 치수선: 아래쪽 폭 -->
+    <g fill="none" stroke="#15181c" stroke-width="1.8" stroke-linecap="round">
+    <path d="M31 78 H65"/><path d="M24 73.5 V82.5 M72 73.5 V82.5"/>
+  </g>
+  <path d="M24 78 L32.5 74.6 V81.4 Z M72 78 L63.5 74.6 V81.4 Z" fill="#15181c"/>
+</svg>

@@ -54,7 +54,9 @@ body{
 /* ── 패널 ───────────────────────────────────────────────────────────────── */
 #ui{position:fixed;top:18px;left:18px;width:300px;padding:18px 18px 20px;
   max-height:calc(100vh - 36px);overflow:auto;overscroll-behavior:contain}
-.head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px}
+.head{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
+.head h1{flex:1}
+.ver{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.02em}
 h1{font-size:17px;font-weight:640;letter-spacing:-.012em;margin:0}
 .sub{color:var(--muted);font-size:12.5px;font-weight:480;margin:0 0 12px}
 .grp{margin-top:14px;padding-top:12px;box-shadow:inset 0 1px 0 var(--line)}
@@ -161,7 +163,7 @@ kbd{font:inherit;font-size:11px;font-weight:560;background:var(--glass2);box-sha
 </div></div>
 
 <div id="ui" class="glass">
-  <div class="head"><h1 id="tTitle"></h1><button class="lang" id="langBtn"></button></div>
+  <div class="head"><h1 id="tTitle"></h1><span class="ver">v1.0.0</span><button class="lang" id="langBtn"></button></div>
   <p class="sub" id="tSub"></p>
 
   <div class="grp first">
@@ -230,6 +232,7 @@ kbd{font:inherit;font-size:11px;font-weight:560;background:var(--glass2);box-sha
 // ── 구워 넣은 형상 (tools/cad2stl.py → STL → int16 양자화) ─────────────────────
 const BAKED = [];
 const BAKED_CTR = [0.000000,0.000000,0.000000], BAKED_QS = 3.125e-05;
+const VERSION = '1.0.0';
 const CREASE_DEG = 12;          // 이 각 이상 꺾이는 모서리는 날을 살린다 (오프라인 렌더로 고른 값)
 const MAX_FILE_MB = 200;        // 이보다 크면 파싱 전에 거절한다 (브라우저 메모리)
 const LIGHT_MS = 180;           // 드래그가 멈춘 뒤 이 시간이 지나면 전체 품질로 다시 그린다
