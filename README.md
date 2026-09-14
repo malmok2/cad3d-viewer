@@ -3,7 +3,7 @@
 논문 그림용 형상 확인 도구. 브라우저에서 STL · OBJ · PLY 를 열어 돌려 보고, 축 정면샷을 직교투영으로 찍고,
 전체 치수와 단면을 걸어 PNG(3×)로 저장한다. **HTML 파일 하나로 완결** — 서버·설치·인터넷 연결이 필요 없다.
 
-**열기:** `https://<계정>.github.io/cad3d-viewer/` (GitHub Pages) 또는 `docs/index.html` 을 내려받아 더블클릭.
+**열기:** https://malmok2.github.io/cad3d-viewer/ (GitHub Pages) 또는 `docs/index.html` 을 내려받아 더블클릭. 기본 예제로 PCHE 70° 지그재그 시험부가 들어 있다.
 
 ## 할 수 있는 것
 
@@ -36,13 +36,26 @@ python tools/fluent2obj.py mesh.msh
 
 ## 뷰어 다시 굽기
 
-`tools/viewer_template.html` 이 소스다. 형상을 파일 안에 내장한 판을 만들려면:
+`tools/viewer_template.html` 이 소스다. `build.cmd` 를 실행하면 기본 예제(`examples/` 의 PCHE 70° 지그재그 시험부 두 형상)를
+내장한 `docs/index.html` 과 홈페이지용 `docs/banner.svg` · `docs/icon.svg` 가 함께 만들어진다. 버전은 `tools/VERSION` 한 곳.
 
 ```bash
+build.cmd
+# 또는 직접:
 python tools/build_viewer.py tools/viewer_template.html docs/index.html "이름=파일.stl" "이름2=파일2.stl"
 ```
 
-인자 없이 굽으면 빈 뷰어(파일 열기만)가 된다. Pretendard 글꼴(`tools/PretendardVariable.woff2`, SIL OFL)은 항상 내장된다.
+STL 인자 없이 굽으면 빈 뷰어(파일 열기만)가 된다. Pretendard 글꼴(`tools/PretendardVariable.woff2`, SIL OFL)은 항상 내장된다.
+
+## 홈페이지 배너
+
+```html
+<a href="https://malmok2.github.io/cad3d-viewer/" target="_blank" rel="noopener">
+  <img src="https://malmok2.github.io/cad3d-viewer/banner.svg" alt="CAD 3D Viewer" width="360" height="96">
+</a>
+```
+
+배너 그림을 Pages 에서 불러오므로 버전을 올려 푸시하면 홈페이지 쪽 숫자도 같이 바뀐다.
 
 ## 확인한 것 / 못 한 것
 
