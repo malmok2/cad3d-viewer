@@ -103,6 +103,21 @@ label.pick .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rm:hover{background:var(--accent-soft);color:var(--bad)}
 .rm svg{width:12px;height:12px}
 
+/* 파트 색 — 견본 한 칸, 누르면 팔레트가 그 줄 아래로 펼쳐진다 (띄우지 않으므로 패널이 스크롤돼도 따라간다) */
+.sw{flex:none;width:16px;height:16px;margin-left:-3px;padding:0;border-radius:5px;
+  box-shadow:inset 0 0 0 1px rgba(24,31,42,.22),var(--sh-1)}
+.sw:active{transform:none}
+.pal{display:none;grid-template-columns:repeat(10,1fr);gap:4px;padding:7px;margin:2px 0 6px;
+  border-radius:10px;background:var(--glass2);box-shadow:inset 0 1px 2px rgba(24,31,42,.10)}
+.pal.on{display:grid}
+.pal>*{min-width:0}
+.pal button{width:100%;aspect-ratio:1;padding:0;border-radius:6px;box-shadow:inset 0 0 0 1px rgba(24,31,42,.22)}
+.pal button.on{box-shadow:inset 0 0 0 1px rgba(24,31,42,.22),0 0 0 2px var(--accent)}
+.pal input[type=color]{width:100%;aspect-ratio:1;padding:0;border:0;border-radius:6px;background:none;cursor:pointer}
+.pal input[type=color]::-webkit-color-swatch-wrapper{padding:0}
+.pal input[type=color]::-webkit-color-swatch{border:0;border-radius:6px;box-shadow:inset 0 0 0 1px rgba(24,31,42,.22)}
+.pal input[type=color]::-moz-color-swatch{border:0;border-radius:6px}
+
 /* 숫자 필드 + 슬라이더 쌍 */
 .num{display:grid;grid-template-columns:1fr 78px;gap:8px;align-items:center;margin-top:6px}
 .num .cap{font-size:12.5px;font-weight:520;color:var(--muted)}
@@ -236,6 +251,20 @@ const VERSION = '__VERSION__';
 const CREASE_DEG = 12;          // 이 각 이상 꺾이는 모서리는 날을 살린다 (오프라인 렌더로 고른 값)
 const MAX_FILE_MB = 200;        // 이보다 크면 파싱 전에 거절한다 (브라우저 메모리)
 const LIGHT_MS = 180;           // 드래그가 멈춘 뒤 이 시간이 지나면 전체 품질로 다시 그린다
+// 파트 색. 쉐이더가 이 색에 음영(lum ≤ 1)을 곱하므로 albedo — 즉 가장 밝은 지점의 색이다.
+// Okabe–Ito 색맹 안전 팔레트의 색상을 그대로 두고 명도만 올렸다. 기본은 흰색 = 지금까지의 회색 음영 그대로.
+const DEF_COLOR = '#ffffff';
+const PALETTE = [
+  { hex: '#ffffff', ko: '기본 (회색)', en: 'Default (grey)' },
+  { hex: '#8d97a3', ko: '먹색',       en: 'Slate' },
+  { hex: '#4d9fd6', ko: '파랑',       en: 'Blue' },
+  { hex: '#7fc9f0', ko: '하늘',       en: 'Sky' },
+  { hex: '#3fbf99', ko: '청록',       en: 'Teal' },
+  { hex: '#f2e06b', ko: '노랑',       en: 'Yellow' },
+  { hex: '#eeb14d', ko: '주황',       en: 'Orange' },
+  { hex: '#e0764a', ko: '주홍',       en: 'Vermillion' },
+  { hex: '#d998bb', ko: '자주',       en: 'Purple' },
+];
 
 // ── 문자열: 키 기반 사전 하나, setLang 이 선택자로 DOM 을 훑는다 ─────────────
 const STR = {
@@ -259,6 +288,7 @@ const STR = {
     drop: '여기에 놓으면 열린다 — STL · OBJ · PLY',
     tipNView: '지금 보는 방향에 수직인 면으로 자른다', tipNFlip: '남기는 쪽을 바꾼다',
     tipPlaneOn: '켜기/끄기', tipRemove: '삭제', tipClose: '닫기',
+    color: '색 — 누르면 팔레트가 열린다', colorCustom: '직접 고르기',
     tri: n => `${n.toLocaleString()} tri`,
     cutCount: n => n ? `${n}개 적용` : '전체',
     planeOff: '꺼짐', planeNoCut: '자르지 않음',
@@ -271,7 +301,7 @@ const STR = {
     stTooBig: a => `${a.name}: ${a.mb} MB — ${MAX_FILE_MB} MB 를 넘어 열지 않았다. 메시를 줄이거나(cad2stl.py --defl 값을 키운다) 파일을 나눈다`,
     stNoTris: a => `${a.name}: 삼각형이 없다 — ${a.why}`,
     stFail: a => `${a.name}: 읽기 실패 — ${a.why}`,
-    stCopied: '링크를 복사했다 — 불투명도·치수·단면 설정이 들어 있다 (카메라는 제외)',
+    stCopied: '링크를 복사했다 — 불투명도·치수·단면·색 설정이 들어 있다 (카메라는 제외)',
     stCopyFail: '클립보드에 쓸 수 없다 — 주소창의 URL 을 직접 복사한다',
     whyStlHeader: a => `헤더의 삼각형 수 ${a.n.toLocaleString()} 와 파일 크기 ${a.size.toLocaleString()} B 가 맞지 않고(84 + 50·n 이어야 한다), ASCII 'vertex' 줄도 없다`,
     whyObjNoFace: a => `v ${a.v.toLocaleString()}개, f 0개 — 면 없는 점군이다. 면(f) 줄이 있는 OBJ 가 필요하다`,
@@ -298,6 +328,7 @@ const STR = {
     drop: 'Drop to open — STL · OBJ · PLY',
     tipNView: 'Cut with a plane normal to the current view', tipNFlip: 'Swap which side is kept',
     tipPlaneOn: 'On/off', tipRemove: 'Remove', tipClose: 'Close',
+    color: 'Colour — click for the palette', colorCustom: 'Custom colour',
     tri: n => `${n.toLocaleString()} tri`,
     cutCount: n => n ? `${n} active` : 'none',
     planeOff: 'off', planeNoCut: 'not cutting',
@@ -310,7 +341,7 @@ const STR = {
     stTooBig: a => `${a.name}: ${a.mb} MB exceeds ${MAX_FILE_MB} MB — not opened. Coarsen the mesh (raise --defl in cad2stl.py) or split the file`,
     stNoTris: a => `${a.name}: no triangles — ${a.why}`,
     stFail: a => `${a.name}: read failed — ${a.why}`,
-    stCopied: 'Link copied — carries opacity, dimensions and section planes (camera excluded)',
+    stCopied: 'Link copied — carries opacity, dimensions, section planes and colours (camera excluded)',
     stCopyFail: 'Clipboard unavailable — copy the URL from the address bar',
     whyStlHeader: a => `header says ${a.n.toLocaleString()} triangles but the file is ${a.size.toLocaleString()} B (expected 84 + 50·n), and there are no ASCII 'vertex' lines`,
     whyObjNoFace: a => `${a.v.toLocaleString()} v lines, 0 f lines — a point cloud without faces; an OBJ with f lines is needed`,
@@ -577,6 +608,7 @@ precision highp float;
 in vec3 vN; in vec3 vV; in vec3 vM;
 uniform vec4 uPlanes[8]; uniform int uNP;
 uniform float uOpacity, uOrtho;
+uniform vec3 uTint;
 out vec4 frag;
 void main() {
   for (int i = 0; i < 8; i++) { if (i >= uNP) break; if (dot(vM, uPlanes[i].xyz) > uPlanes[i].w) discard; }
@@ -589,7 +621,7 @@ void main() {
   float lum = clamp(0.40 + 0.44*key + 0.13*fill + 0.06*back - 0.30*fres, 0.06, 1.0);
   float base = pow(uOpacity, 2.6);
   float a = base + (1.0 - base) * fres * 0.45;
-  frag = vec4(vec3(lum), clamp(a, 0.0, 1.0));
+  frag = vec4(uTint * lum, clamp(a, 0.0, 1.0));
 }`;
 function sh(t, src) {
   const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s);
@@ -601,7 +633,7 @@ gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRA
 gl.bindAttribLocation(prog, 0, 'aPos'); gl.bindAttribLocation(prog, 1, 'aNrm'); gl.linkProgram(prog);
 if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw gl.getProgramInfoLog(prog);
 gl.useProgram(prog);
-const U = {}; for (const k of ['uMV','uP','uPlanes','uNP','uOpacity','uOrtho']) U[k] = gl.getUniformLocation(prog, k);
+const U = {}; for (const k of ['uMV','uP','uPlanes','uNP','uOpacity','uOrtho','uTint']) U[k] = gl.getUniformLocation(prog, k);
 // 격자선: 같은 절단 규칙, 단색
 const LVS = `#version 300 es
 in vec3 aPos; uniform mat4 uMV, uP; out vec3 vM;
@@ -619,7 +651,7 @@ if (!gl.getProgramParameter(lprog, gl.LINK_STATUS)) throw gl.getProgramInfoLog(l
 const LU = {}; for (const k of ['uMV','uP','uPlanes','uNP','uColor']) LU[k] = gl.getUniformLocation(lprog, k);
 
 // ── 상태: 기본값은 한 곳, 공유되는 것과 이 화면만의 것을 나눈다 ───────────────
-const DEFAULTS = { op: 100, dims: true, wire: false, showPlane: true, planes: [], parts: null };   // 공유 (해시)
+const DEFAULTS = { op: 100, dims: true, wire: false, showPlane: true, planes: [], parts: null, cols: null };   // 공유 (해시)
 const st = { ...DEFAULTS };                       // planes: [{n:[3], d, on}]
 let sel = -1;                                     // 이 화면만의 것 (해시에 넣지 않는다)
 let isOrtho = true, wantAlpha = false, viewName = 'iso', lastBasis = null, lastMV = null, lastP = null;
@@ -646,7 +678,7 @@ function addPart(name, mesh, on, baked) {
   if (!m.tris) return null;
   const g = upload(m.pos, m.nrm, m.line);
   const p = { name, on, baked: !!baked, count: m.tris * 3, tris: m.tris, lcount: m.edges * 2, lo: m.lo, hi: m.hi,
-              vao: g.vao, lvao: g.lvao, bufs: g.bufs };
+              color: DEF_COLOR, rgb: [1, 1, 1], vao: g.vao, lvao: g.lvao, bufs: g.bufs };
   PARTS.push(p); return p;
 }
 // OBJ 의 o/g 그룹은 각각 파트로 (Fluent zone: inlet, wall_rods, …). 그룹이 없으면 파일 하나가 파트 하나.
@@ -658,6 +690,12 @@ function addParts(name, mesh, on, baked) {
     if (p) out.push(p);
   }
   return out;
+}
+// 색은 문자열(#rrggbb)로 들고 다니고, 그릴 때 쓰는 0..1 벡터는 한 번만 만들어 둔다
+function hexRGB(h) { const v = parseInt(h.slice(1), 16); return [(v >> 16 & 255) / 255, (v >> 8 & 255) / 255, (v & 255) / 255]; }
+function setPartColor(p, hex) {
+  p.color = /^#[0-9a-fA-F]{6}$/.test(hex || '') ? hex.toLowerCase() : DEF_COLOR;
+  p.rgb = hexRGB(p.color);
 }
 function removePart(p) { gl.deleteVertexArray(p.vao); gl.deleteVertexArray(p.lvao); p.bufs.forEach(b => gl.deleteBuffer(b)); PARTS.splice(PARTS.indexOf(p), 1); }
 function bboxCorners() {
@@ -679,11 +717,28 @@ function updateScene() {
   document.getElementById('tricount').textContent = T().tri(vis.reduce((s, p) => s + p.tris, 0));
   renderPlanes(); loadEditor(); persist();
 }
+// 팔레트 한 줄: 정해진 색 + 마지막 칸은 직접 고르기. 견본을 다시 누르면 접힌다.
+function buildPalette(p, sw) {
+  const d = document.createElement('div'); d.className = 'pal';
+  for (const c of PALETTE) {
+    const b = document.createElement('button'); b.type = 'button';
+    b.style.background = c.hex; b.title = c[lang] || c.en;
+    if (p.color === c.hex) b.className = 'on';
+    b.onclick = e => { e.preventDefault(); setPartColor(p, c.hex); renderList(); draw(); persist(); };
+    d.appendChild(b);
+  }
+  // 직접 고르기는 끄는 동안 계속 input 이 온다 — 여기서 목록을 다시 그리면 고르던 창이 닫힌다
+  const ci = document.createElement('input');
+  ci.type = 'color'; ci.value = p.color; ci.title = T().colorCustom;
+  ci.oninput = () => { setPartColor(p, ci.value); sw.style.background = p.color; draw(); persist(); };
+  d.appendChild(ci);
+  return d;
+}
 function renderList() {
   const box = document.getElementById('parts'); box.innerHTML = '';
   for (const p of PARTS) {
     const l = document.createElement('label'); l.className = 'pick';
-    l.innerHTML = `<input type="checkbox" ${p.on ? 'checked' : ''}><span class="nm"></span><span class="cnt"></span>
+    l.innerHTML = `<input type="checkbox" ${p.on ? 'checked' : ''}><button class="sw" type="button"></button><span class="nm"></span><span class="cnt"></span>
       <button class="rm" type="button"><svg viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button>`;
     l.querySelector('.nm').textContent = p.name; l.querySelector('.nm').title = p.name;
     l.querySelector('.cnt').textContent = p.tris.toLocaleString();
@@ -691,6 +746,16 @@ function renderList() {
     l.querySelector('input').onchange = e => { p.on = e.target.checked; updateScene(); draw(); };
     l.querySelector('.rm').onclick = e => { e.preventDefault(); removePart(p); renderList(); updateScene(); fitView(); draw(); };
     box.appendChild(l);
+    const sw = l.querySelector('.sw');
+    sw.style.background = p.color; sw.title = T().color;
+    const pal = buildPalette(p, sw);            // 라벨 밖(형제)이라 팔레트를 눌러도 체크박스가 토글되지 않는다
+    box.appendChild(pal);
+    sw.onclick = e => {                         // 견본은 라벨 안이라 기본 동작(체크 토글)을 막아야 한다
+      e.preventDefault();
+      const was = pal.classList.contains('on');
+      box.querySelectorAll('.pal.on').forEach(x => x.classList.remove('on'));
+      if (!was) pal.classList.add('on');
+    };
   }
 }
 
@@ -738,11 +803,12 @@ function drawGL(w, h, clearAlpha) {
   const vis = PARTS.filter(p => p.on);
   if (op >= 0.995) {
     gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE); gl.depthMask(true);
-    for (const p of vis) { gl.bindVertexArray(p.vao); gl.drawArrays(gl.TRIANGLES, 0, p.count); }
+    for (const p of vis) { gl.uniform3fv(U.uTint, p.rgb); gl.bindVertexArray(p.vao); gl.drawArrays(gl.TRIANGLES, 0, p.count); }
   } else {
     gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false); gl.enable(gl.CULL_FACE);
     for (const p of vis) {
+      gl.uniform3fv(U.uTint, p.rgb);
       gl.bindVertexArray(p.vao);
       gl.cullFace(gl.FRONT); gl.drawArrays(gl.TRIANGLES, 0, p.count);
       gl.cullFace(gl.BACK);  gl.drawArrays(gl.TRIANGLES, 0, p.count);
@@ -1104,7 +1170,12 @@ function encodeState() {
   const q = new URLSearchParams();
   q.set('op', st.op); q.set('dims', st.dims ? 1 : 0); q.set('wire', st.wire ? 1 : 0); q.set('pl', st.showPlane ? 1 : 0);
   if (st.planes.length) q.set('cut', st.planes.map(p => [...p.n.map(v => +v.toFixed(4)), +p.d.toFixed(3), p.on ? 1 : 0].join(',')).join(';'));
-  const baked = PARTS.filter(p => p.baked); if (baked.length) q.set('parts', baked.map(p => p.on ? 1 : 0).join(''));
+  const baked = PARTS.filter(p => p.baked);
+  if (baked.length) {
+    q.set('parts', baked.map(p => p.on ? 1 : 0).join(''));
+    const cols = baked.map(p => p.color === DEF_COLOR ? '-' : p.color.slice(1));
+    if (cols.some(c => c !== '-')) q.set('cols', cols.join(','));   // 기본색뿐이면 넣지 않는다 — 링크가 길어질 뿐이다
+  }
   return q.toString();
 }
 function decodeState(s) {
@@ -1116,6 +1187,7 @@ function decodeState(s) {
   if (q.has('cut')) o.planes = q.get('cut').split(';').map(t => t.split(',').map(Number)).filter(a => a.length === 5 && a.every(Number.isFinite))
     .map(a => ({ n: norm(a.slice(0, 3)), d: a[3], on: a[4] === 1 })).slice(0, 8);
   if (q.has('parts')) o.parts = q.get('parts').split('').map(c => c === '1');
+  if (q.has('cols')) o.cols = q.get('cols').split(',').map(c => /^[0-9a-fA-F]{6}$/.test(c) ? '#' + c.toLowerCase() : DEF_COLOR);
   return o;
 }
 let persistT = null;
@@ -1140,6 +1212,7 @@ document.getElementById('share').onclick = async () => {
 function applyState(o) {
   Object.assign(st, { ...DEFAULTS, ...o, planes: (o.planes || []).map(p => ({ ...p })) });
   if (o.parts) PARTS.filter(p => p.baked).forEach((p, i) => { if (i < o.parts.length) p.on = o.parts[i]; });
+  if (o.cols) PARTS.filter(p => p.baked).forEach((p, i) => { if (i < o.cols.length) setPartColor(p, o.cols[i]); });
   sel = st.planes.length ? 0 : -1;
   document.getElementById('dims').checked = st.dims; document.getElementById('wire').checked = st.wire; document.getElementById('showPlane').checked = st.showPlane;
   showOp();
