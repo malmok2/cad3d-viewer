@@ -1,0 +1,60 @@
+{
+  "_comment": "뷰어에 굽는 예제 목록. 첫 번째가 기본. STL 은 parts 에 파일마다, OBJ 는 file 하나에 그룹(o/g)마다 파트. names 는 한/영 표시 이름, color/op/on 은 처음 불러올 때의 값. display 는 목록에서 고를 때만 적용.",
+  "examples": [
+    {
+      "id": "pche",
+      "title": { "ko": "PCHE 70° 지그재그 시험부", "en": "PCHE 70° zigzag test section" },
+      "desc":  { "ko": "공기 탭이 있는 형상과 복원 형상 두 개. 단면·투명도로 내부 유로를 본다.",
+                 "en": "Two shapes: with air tap and recovered. Use sections and transparency to see the internal passage." },
+      "parts": [
+        { "file": "PCHE_70deg_AirTap.stl",    "names": { "ko": "PCHE_70deg_AirTap",    "en": "PCHE_70deg_AirTap" },    "on": true },
+        { "file": "PCHE_70deg_recovered.stl", "names": { "ko": "PCHE_70deg_recovered", "en": "PCHE_70deg_recovered" }, "on": false }
+      ]
+    },
+    {
+      "id": "fa17",
+      "title": { "ko": "17×17 핵연료 집합체 (높이 축소)", "en": "17×17 fuel assembly (shortened)" },
+      "desc":  { "ko": "연료봉 264 · 안내관/계측관 25 · 지지격자 4단. y 에 수직인 단면(⊥ y)을 걸면 격자 배열이 보인다. 치수는 예시값.",
+                 "en": "264 fuel rods · 25 guide/instrument tubes · 4 spacer grids. Add a ⊥ y section to see the lattice. Illustrative dimensions." },
+      "file": "fuel_assembly_17x17.obj",
+      "parts": {
+        "fuel_rods":    { "names": { "ko": "연료봉",        "en": "Fuel rods" } },
+        "guide_tubes":  { "names": { "ko": "안내관·계측관", "en": "Guide / instrument tubes" }, "color": "#4d9fd6" },
+        "spacer_grids": { "names": { "ko": "지지격자",      "en": "Spacer grids" }, "color": "#eeb14d" },
+        "nozzles":      { "names": { "ko": "상·하단 고정체", "en": "Top / bottom nozzles" }, "color": "#8d97a3", "op": 45 }
+      }
+    },
+    {
+      "id": "hcsg",
+      "title": { "ko": "나선형 증기발생기 (SMR 일체형 개념)", "en": "Helical-coil steam generator (integral SMR concept)" },
+      "desc":  { "ko": "전열관 6열, 열마다 감김 방향이 반대. 슈라우드는 반투명. 축을 지나는 단면(⊥ z)으로 관 배열을 본다. 치수는 예시값.",
+                 "en": "6 tube columns with alternating winding; translucent shroud. A ⊥ z section through the axis shows the tube layout. Illustrative dimensions." },
+      "file": "helical_sg.obj",
+      "parts": {
+        "riser":         { "names": { "ko": "라이저",   "en": "Riser" },         "color": "#8d97a3" },
+        "tubes_col1":    { "names": { "ko": "전열관 1열", "en": "Tubes, column 1" }, "color": "#4d9fd6" },
+        "tubes_col2":    { "names": { "ko": "전열관 2열", "en": "Tubes, column 2" }, "color": "#e0764a" },
+        "tubes_col3":    { "names": { "ko": "전열관 3열", "en": "Tubes, column 3" }, "color": "#3fbf99" },
+        "tubes_col4":    { "names": { "ko": "전열관 4열", "en": "Tubes, column 4" }, "color": "#eeb14d" },
+        "tubes_col5":    { "names": { "ko": "전열관 5열", "en": "Tubes, column 5" }, "color": "#d998bb" },
+        "tubes_col6":    { "names": { "ko": "전열관 6열", "en": "Tubes, column 6" }, "color": "#7fc9f0" },
+        "tube_supports": { "names": { "ko": "관 지지대", "en": "Tube supports" },  "color": "#8d97a3", "op": 60 },
+        "shroud":        { "names": { "ko": "슈라우드", "en": "Shroud" },          "op": 22 }
+      }
+    },
+    {
+      "id": "sub3",
+      "title": { "ko": "3×3 봉다발 부수로 CFD 메시 (Fluent zone)", "en": "3×3 rod-bundle subchannel CFD mesh (Fluent zones)" },
+      "desc":  { "ko": "tools/fluent2obj.py 가 내는 것과 같은 zone 구조(inlet · outlet · 봉 벽 · 덕트 벽). 격자선(W)을 켜면 O-grid 사각 격자가 대각선 없이 보인다.",
+                 "en": "Same zone layout as tools/fluent2obj.py writes (inlet · outlet · rod walls · duct wall). Mesh lines (W) show the O-grid quads without diagonals." },
+      "file": "subchannel_3x3_mesh.obj",
+      "parts": {
+        "inlet [velocity-inlet]":   { "names": { "ko": "inlet [velocity-inlet]",   "en": "inlet [velocity-inlet]" },   "color": "#4d9fd6" },
+        "outlet [pressure-outlet]": { "names": { "ko": "outlet [pressure-outlet]", "en": "outlet [pressure-outlet]" }, "color": "#e0764a" },
+        "wall_rods [wall]":         { "names": { "ko": "wall_rods [wall]",         "en": "wall_rods [wall]" },         "color": "#8d97a3" },
+        "wall_duct [wall]":         { "names": { "ko": "wall_duct [wall]",         "en": "wall_duct [wall]" },         "op": 30 }
+      },
+      "display": { "wire": true }
+    }
+  ]
+}

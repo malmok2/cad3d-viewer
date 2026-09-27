@@ -3,7 +3,21 @@
 논문 그림용 형상 확인 도구. 브라우저에서 STL · OBJ · PLY 를 열어 돌려 보고, 축 정면샷을 직교투영으로 찍고,
 전체 치수와 단면을 걸어 PNG(3×)로 저장한다. **HTML 파일 하나로 완결** — 서버·설치·인터넷 연결이 필요 없다.
 
-**열기:** https://malmok2.github.io/cad3d-viewer/ (GitHub Pages) 또는 `docs/index.html` 을 내려받아 더블클릭. 기본 예제로 PCHE 70° 지그재그 시험부가 들어 있다.
+**열기:** https://malmok2.github.io/cad3d-viewer/ (GitHub Pages) 또는 `docs/index.html` 을 내려받아 더블클릭. 예제 4개가 들어 있다 — 패널 맨 위 목록에서 고른다.
+
+## 예제
+
+| 예제 | 내용 | 해 볼 것 |
+|---|---|---|
+| PCHE 70° 지그재그 시험부 (기본) | 공기 탭 형상 · 복원 형상 (CAD → STL) | 투명도로 내부 유로, 단면 |
+| 17×17 핵연료 집합체 (높이 축소) | 연료봉 264 · 안내관/계측관 25 · 지지격자 4단 · 상/하단 고정체 | `⊥ y` 단면으로 격자 배열 |
+| 나선형 증기발생기 (SMR 일체형 개념) | 라이저 · 전열관 6열(열마다 감김 방향 반대) · 관 지지대 · 반투명 슈라우드 | 축을 지나는 `⊥ z` 단면, 열마다 켜고 끄기 |
+| 3×3 봉다발 부수로 CFD 메시 | Fluent zone 형식(inlet · outlet · 봉 벽 · 덕트 벽), O-grid 사각 격자 | 격자선(`W`) — 대각선 없이 사각형 그대로 |
+
+뒤의 셋은 `tools/make_examples.py` 가 만든다(파이썬만으로, 단위 mm). 17×17 배치(안내관 24 + 계측관 1, 피치 12.6, 봉 지름 9.5,
+안내관 12.24)는 일반적인 PWR 17×17 값을 따랐고, 높이·격자 수·증기발생기 치수는 보기 좋게 줄인 **예시값**이다 — 특정 노형의 설계값이 아니다.
+예제를 바꾸면 그 예제의 파트만 바뀌고, 직접 연 파일은 그대로 남는다. 단면과 측정은 형상마다 다르므로 비운다.
+공유 링크에는 어느 예제인지도 들어간다.
 
 ## 할 수 있는 것
 
@@ -69,16 +83,23 @@ python tools/fluent2obj.py mesh.msh
 
 ## 뷰어 다시 굽기
 
-`tools/viewer_template.html` 이 소스다. `build.cmd` 를 실행하면 기본 예제(`examples/` 의 PCHE 70° 지그재그 시험부 두 형상)를
-내장한 `docs/index.html` 과 홈페이지용 `docs/banner.svg` · `docs/icon.svg` 가 함께 만들어진다. 버전은 `tools/VERSION` 한 곳.
+`tools/viewer_template.html` 이 소스다. `build.cmd`(Windows) · `build.sh`(macOS · Linux) 를 실행하면 `examples/examples.json` 의
+예제를 내장한 `docs/index.html` 과 홈페이지용 `docs/banner.svg` · `docs/icon.svg` 가 함께 만들어진다. 버전은 `tools/VERSION` 한 곳.
 
 ```bash
-build.cmd
+python tools/make_examples.py      # 예제 형상(OBJ 셋)을 다시 만들 때만
+build.cmd                          # 또는 sh build.sh
 # 또는 직접:
-python tools/build_viewer.py tools/viewer_template.html docs/index.html "이름=파일.stl" "이름2=파일2.stl"
+python tools/build_viewer.py tools/viewer_template.html docs/index.html examples/examples.json
+python tools/build_viewer.py tools/viewer_template.html docs/index.html "이름=파일.stl" ...   # 예전 방식: STL 들을 예제 하나로
 ```
 
-STL 인자 없이 굽으면 빈 뷰어(파일 열기만)가 된다. Pretendard 글꼴(`tools/PretendardVariable.woff2`, SIL OFL)은 항상 내장된다.
+- **예제 추가:** `examples/` 에 STL(바이너리) 이나 OBJ 를 넣고 `examples/examples.json` 에 한 항목을 더한다. 첫 항목이 기본으로 열린다.
+  STL 은 `parts` 에 파일마다, OBJ 는 `file` 하나에 그룹(`o`/`g`)마다 파트가 된다. 파트마다 한/영 이름·처음 색·불투명도를 줄 수 있다.
+- **인코딩:** 예제마다 int16 으로 양자화하고 같은 점을 합쳐 색인으로 만든 뒤 gzip 한다(브라우저가 `DecompressionStream` 으로 푼다 —
+  통신 없음). 삼각형 수프보다 3 배쯤 작아서, 예제를 넷으로 늘리고도 파일은 5.4 → 4.4 MB 로 줄었다.
+  양자화 간격은 1·2·5 × 10ⁿ 로 잡아 mm 로 설계한 치수(1300, 215.4 …)가 반올림 오차 없이 그대로 찍힌다.
+- 예제 목록이 비면 빈 뷰어(파일 열기만)가 된다. Pretendard 글꼴(`tools/PretendardVariable.woff2`, SIL OFL)은 항상 내장된다.
 
 ## 홈페이지 배너
 

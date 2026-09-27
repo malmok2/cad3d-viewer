@@ -126,6 +126,11 @@ label.pick .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .axes.tools button{padding:6px 4px;font-size:12px}
 .row2{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin:6px 0 8px}
 .row2 .cap{font-size:12.5px;font-weight:520;color:var(--muted)}
+select{font:inherit;font-size:12.5px;font-weight:560;color:var(--text);width:100%;min-width:0;padding:6px 8px;border:0;
+  border-radius:9px;background:var(--glass2);box-shadow:inset 0 1px 2px rgba(24,31,42,.14);cursor:pointer}
+select:focus-visible{outline:0;box-shadow:inset 0 1px 2px rgba(24,31,42,.14),0 0 0 3px var(--focus)}
+.exrow{margin:0 0 4px}
+#exDesc{margin:0 0 10px}
 #cv.meas{cursor:crosshair}
 /* 패널 숨기기 — 형상이 패널에 가릴 때 */
 #ui.off{display:none}
@@ -200,6 +205,8 @@ kbd{font:inherit;font-size:11px;font-weight:560;background:var(--glass2);box-sha
   <p class="sub" id="tSub"></p>
 
   <div class="grp first">
+    <div class="row2 exrow" id="exRow"><span class="cap" id="tExample"></span><select id="exSel"></select></div>
+    <p class="hint" id="exDesc"></p>
     <div class="lbl"><span class="tag" id="tParts"></span><span class="val" id="tricount"></span></div>
     <div id="parts"></div>
     <div class="axes tools" id="visRow"><button id="allOn"></button><button id="allOff"></button><button id="invOn"></button></div>
@@ -277,8 +284,9 @@ kbd{font:inherit;font-size:11px;font-weight:560;background:var(--glass2);box-sha
 <script>
 'use strict';
 // ── 구워 넣은 형상 (tools/cad2stl.py → STL → int16 양자화) ─────────────────────
-const BAKED = __PARTS__;
-const BAKED_CTR = __CTR__, BAKED_QS = __QS__;
+// 예제: [{id, title{ko,en}, desc{ko,en}, ctr, qs, data(gzip·base64), parts:[{names{ko,en}, nv, nf, on, color?, op?}], display?}]
+// data = 파트마다 [int16 정점 3·nv][uint32 면 흐름 nf: k, i0..ik-1, …] 를 이어 붙여 gzip (tools/build_viewer.py)
+const EXAMPLES = __EXAMPLES__;
 const VERSION = '__VERSION__';
 const CREASE_DEG = 12;          // 이 각 이상 꺾이는 모서리는 날을 살린다 (오프라인 렌더로 고른 값)
 const FEAT_DEG = 30;            // 윤곽선: 두 면이 이 각보다 더 꺾인 모서리 (원통을 24 등분 이상 나눈 면 사이는 15° 라 안 걸린다)
@@ -313,6 +321,8 @@ const STR = {
     measHint: '켜고 형상 위를 두 번 누르면 두 점 사이 거리와 축별 차이(Δx·Δy·Δz)가 나온다. 꼭짓점 가까이 누르면 꼭짓점에 붙는다(■). 50% 미만으로 투명한 파트는 통과해 안쪽을 잰다. 돌리기는 그대로 드래그.',
     stMeasFirst: '첫 점 — 두 번째 점을 누른다 (Esc 취소)', stMeasMiss: '형상 위를 눌러야 한다', stMeasDone: a => `거리 ${a}`,
     scale: '배율', showUi: '패널', tipHideUi: '패널 숨기기 (H)',
+    example: '예제', exNone: '(예제 없음 — 내 파일만)', loading: '예제를 푸는 중…',
+    stExFail: '예제를 풀지 못했다 — 이 브라우저에 압축 풀기 기능(DecompressionStream)이 없다. Chrome·Edge·Firefox·Safari 최신판을 쓴다',
     cut: '단면', addPlane: '단면 추가', nView: '시점 방향', nFlip: '반대쪽', cutPos: '위치 (파일 단위)',
     showPlane: '절단면 윤곽 표시',
     cutHint: '목록에서 고른 단면을 위 버튼·법선·위치로 편집한다. 여러 단면은 각각 남기는 쪽의 <b>교집합</b>만 남긴다 (두 개를 직교로 걸면 1/4 절단).',
@@ -362,6 +372,8 @@ const STR = {
     measHint: 'Turn on, then click twice on the geometry for the distance and per-axis difference (Δx·Δy·Δz). Clicks near a vertex snap to it (■). Parts below 50% opacity are clicked through. Drag still rotates.',
     stMeasFirst: 'First point — click the second (Esc cancels)', stMeasMiss: 'Click on the geometry', stMeasDone: a => `Distance ${a}`,
     scale: 'Scale', showUi: 'Panel', tipHideUi: 'Hide panel (H)',
+    example: 'Example', exNone: '(no example — my files only)', loading: 'Unpacking example…',
+    stExFail: 'Could not unpack the example — this browser lacks DecompressionStream. Use a current Chrome, Edge, Firefox or Safari',
     cut: 'Section', addPlane: 'Add plane', nView: 'View dir', nFlip: 'Flip side', cutPos: 'Position (file units)',
     showPlane: 'Show plane outline',
     cutHint: 'The selected plane is edited by the buttons, normal and position above. Several planes keep the <b>intersection</b> of their kept sides (two orthogonal planes give a quarter cut).',
@@ -406,6 +418,7 @@ const TEXT_MAP = { '#tTitle': 'title', '#tSub': 'sub', '#langBtn': 'langBtn', '#
   '#tShowPlane': 'showPlane', '#tSave': 'save', '#tAlpha': 'alpha', '#tShare': 'share', '#drop': 'drop',
   '#tEdges': 'edges', '#allOn': 'allOn', '#allOff': 'allOff', '#invOn': 'invOn',
   '#tMeasure': 'measure', '#tMeasBtn': 'measBtn', '#measClear': 'measClear', '#tScale': 'scale', '#tShowUi': 'showUi',
+  '#tExample': 'example',
   '#tShotDl': 'shotDl', '#tShotCopy': 'shotCopy', '#tShotClose': 'shotClose', '#tShotHint': 'shotHint',
   '#autoCol': 'autoCol', '#resetCol': 'resetCol' };
 const HTML_MAP = { '#tConvHint': 'convHint', '#tCutHint': 'cutHint', '#tKeys': 'keys', '#tMeasHint': 'measHint' };
@@ -420,7 +433,7 @@ function setLang(l) {
   for (const [sel, key] of Object.entries(HTML_MAP)) document.querySelector(sel).innerHTML = T()[key];
   for (const [sel, key] of Object.entries(TIP_MAP)) document.querySelector(sel).title = T()[key];
   document.title = T().title;
-  paintSave(); paintMeas();                   // 숫자가 들어가는 문구
+  paintSave(); paintMeas(); paintExamples();  // 숫자·예제 이름이 들어가는 문구
   store.set('lang', lang);
   renderList(); renderStatus(); updateScene(); draw();
 }
@@ -800,6 +813,7 @@ function autoColors(n) {
   if (n <= AUTO_ORDER.length) return AUTO_ORDER.slice(0, n);
   return Array.from({ length: n }, (_, i) => hslHex((205 + i * 360 / n) % 360, 0.58, i % 2 ? 0.74 : 0.60));
 }
+const partName = p => (p.names && p.names[lang]) || p.name;
 function removePart(p) { gl.deleteVertexArray(p.vao); gl.deleteVertexArray(p.lvao); gl.deleteVertexArray(p.fvao); p.bufs.forEach(b => gl.deleteBuffer(b)); PARTS.splice(PARTS.indexOf(p), 1); }
 function bboxCorners() {
   const c = [];
@@ -874,7 +888,7 @@ function renderList() {
     const l = document.createElement('label'); l.className = 'pick';
     l.innerHTML = `<input type="checkbox" ${p.on ? 'checked' : ''}><button class="sw" type="button"></button><span class="nm"></span><span class="cnt"></span>
       <button class="rm" type="button"><svg viewBox="0 0 12 12"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg></button>`;
-    l.querySelector('.nm').textContent = p.name; l.querySelector('.nm').title = p.name + '\n' + T().tipSolo;
+    l.querySelector('.nm').textContent = partName(p); l.querySelector('.nm').title = partName(p) + '\n' + T().tipSolo;
     // 라벨을 두 번 누르면 체크가 두 번 바뀌어 제자리 — 그다음 이 파트만 남긴다
     l.querySelector('.nm').ondblclick = e => { e.preventDefault(); setAllOn(q => q === p); };
     l.querySelector('.cnt').textContent = p.tris.toLocaleString();
@@ -998,7 +1012,7 @@ function drawOverlay(ctx, w, h, k, light) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   if (!PARTS.some(p => p.on)) {                     // 두 상태, 두 문장
     ctx.fillStyle = INK; ctx.font = `520 ${15 * k}px ${FONT()}`;
-    ctx.fillText(PARTS.length ? T().emptyAllOff : T().emptyNone, w / 2, h / 2);
+    ctx.fillText(exLoading ? T().loading : PARTS.length ? T().emptyAllOff : T().emptyNone, w / 2, h / 2);
     return;
   }
   if (!lastMV) return;
@@ -1470,7 +1484,7 @@ document.getElementById('save').onclick = () => {
   drawOverlay(o2.getContext('2d'), W, Hh, S, false); ctx.drawImage(o2, 0, 0);
   const url = out.toDataURL('image/png');
   cv.width = ow; cv.height = oh; draw();
-  const nm = PARTS.filter(p => p.on).map(p => p.name.replace(/\.[^.]+$/, '')).join('+') || 'cad';
+  const nm = PARTS.filter(p => p.on).map(p => partName(p).replace(/\.[^.]+$/, '')).join('+').slice(0, 80) || 'cad';
   shot = { url, name: `${nm}_${viewName}_${isOrtho ? 'ortho' : 'persp'}.png`, w: W, h: Hh, canvas: out };
   shotImg.src = url; shotImg.alt = shot.name; shotEl.classList.add('on');
   if (!EMBEDDED) shotDl.click();       // 최상위 창에서는 바로 받아진다. iframe 안이면 시도해도 조용히 무시되므로 하지 않는다
@@ -1517,6 +1531,7 @@ function encodeState() {
     if (ops.some(c => c !== '-')) q.set('ops', ops.join(','));
   }
   if (st.edges) q.set('edge', 1);
+  if (curEx !== defaultEx()) q.set('ex', curEx);   // 기본 예제면 넣지 않는다 — 예전 링크와 같은 모양
   return q.toString();
 }
 function decodeState(s) {
@@ -1531,6 +1546,7 @@ function decodeState(s) {
   if (q.has('cols')) o.cols = q.get('cols').split(',').map(c => /^[0-9a-fA-F]{6}$/.test(c) ? '#' + c.toLowerCase() : DEF_COLOR);
   if (q.has('ops')) o.ops = q.get('ops').split(',').map(c => c !== '-' && c !== '' && Number.isFinite(+c) ? clamp(+c, 0, 100) : 100);
   if (q.has('edge')) o.edges = q.get('edge') === '1';
+  if (q.has('ex')) o.ex = q.get('ex');
   return o;
 }
 let persistT = null;
@@ -1570,26 +1586,82 @@ function applyState(o) {
   if (o.cols) PARTS.filter(p => p.baked).forEach((p, i) => { if (i < o.cols.length) setPartColor(p, o.cols[i]); });
   if (o.ops) PARTS.filter(p => p.baked).forEach((p, i) => { if (i < o.ops.length) p.op = o.ops[i]; });
   sel = st.planes.length ? 0 : -1;
+  syncChecks();
+}
+function syncChecks() {
   document.getElementById('dims').checked = st.dims; document.getElementById('wire').checked = st.wire; document.getElementById('showPlane').checked = st.showPlane;
   document.getElementById('edges').checked = st.edges;
   showOp();
 }
 
+// ── 예제: 고를 때 푼다(시작이 빠르게). 예제 파트는 목록 맨 앞, 내가 연 파일은 그대로 둔다 ──────────────
+let curEx = '', exLoading = false;
+const defaultEx = () => EXAMPLES.length ? EXAMPLES[0].id : '';
+async function inflate(b64) {
+  const ds = new DecompressionStream('gzip');                     // 통신 없음 — 메모리 안에서 푼다
+  return new Uint8Array(await new Response(new Blob([bytes(b64)]).stream().pipeThrough(ds)).arrayBuffer());
+}
+async function loadExample(id) {
+  const ex = EXAMPLES.find(e => e.id === id) || null;
+  PARTS.filter(p => p.baked).forEach(removePart);
+  meas.list = []; meas.pend = null;                               // 측정은 그 형상에 붙은 것
+  curEx = ex ? ex.id : '';
+  if (ex) {
+    exLoading = true; draw();
+    try {
+      const buf = await inflate(ex.data); let off = 0;
+      for (const pm of ex.parts) {
+        const q = new Int16Array(buf.slice(off, off + pm.nv * 6).buffer); off += pm.nv * 6;
+        const faces = new Int32Array(buf.slice(off, off + pm.nf * 4).buffer); off += pm.nf * 4;
+        const V = new Float32Array(q.length);
+        for (let i = 0; i < q.length; i++) V[i] = ex.ctr[i % 3] + q[i] * ex.qs;
+        const p = addPart(pm.names.ko, { V, faces, eps: ex.qs }, pm.on !== false, true);   // eps: 양자화 간격 (윤곽선 판정용)
+        if (!p) continue;
+        p.names = pm.names;
+        if (pm.color) setPartColor(p, pm.color);
+        if (pm.op != null) p.op = pm.op;
+      }
+    } catch (err) { curEx = ''; status('stExFail', null, { bad: true, keep: true }); console.error(err); }
+    exLoading = false;
+  }
+  PARTS.sort((a, b) => b.baked - a.baked);                         // 안정 정렬 — 예제 파트 순서 유지
+  paintExamples();
+}
+function paintExamples() {
+  const selEl = document.getElementById('exSel');
+  document.getElementById('exRow').style.display = EXAMPLES.length ? '' : 'none';
+  selEl.innerHTML = '';
+  for (const e of EXAMPLES) selEl.add(new Option(e.title[lang] || e.title.en, e.id));
+  selEl.add(new Option(T().exNone, ''));
+  selEl.value = curEx;
+  const ex = EXAMPLES.find(e => e.id === curEx);
+  document.getElementById('exDesc').textContent = ex ? (ex.desc[lang] || ex.desc.en || '') : '';
+  document.getElementById('exDesc').style.display = ex && (ex.desc[lang] || ex.desc.en) ? '' : 'none';
+}
+document.getElementById('exSel').onchange = async e => {
+  await loadExample(e.target.value);
+  st.planes = []; sel = -1;                                      // 단면 위치는 형상마다 다르다
+  const ex = EXAMPLES.find(x => x.id === curEx);
+  if (ex && ex.display) Object.assign(st, ex.display);
+  syncChecks(); renderList(); updateScene(); fitView(); draw(); persist();
+  e.target.blur();                                               // 단축키가 선택 목록에 먹히지 않게
+};
+
 // ── 시작 ────────────────────────────────────────────────────────────────────
 function bytes(b64) { const s = atob(b64), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; }
-for (const b of BAKED) {
-  const q = new Int16Array(bytes(b.pos).buffer), soup = new Float32Array(q.length);
-  for (let i = 0; i < q.length; i++) soup[i] = BAKED_CTR[i % 3] + q[i] * BAKED_QS;
-  addPart(b.label, Object.assign(triSoup(soup), { eps: BAKED_QS }), b.on, true);   // eps: int16 양자화 간격 (윤곽선 판정용)
-}
 document.getElementById('langBtn').onclick = () => setLang(lang === 'ko' ? 'en' : 'ko');
 lang = store.get('lang') || ((navigator.language || '').startsWith('ko') ? 'ko' : 'en');
 setProj(true);
-const camQ = new URLSearchParams(location.hash.slice(1)).get('cam');   // 곧 persist 가 주소를 다시 쓰므로 먼저 받아 둔다
-applyState(decodeState(location.hash.slice(1) || store.get('state') || ''));
-setLang(lang);                    // 문자열 → renderList/updateScene/draw 까지
 addEventListener('resize', () => draw());
-fitView(); if (camQ) applyCam(camQ); draw();
+(async () => {
+  const camQ = new URLSearchParams(location.hash.slice(1)).get('cam');   // 곧 persist 가 주소를 다시 쓰므로 먼저 받아 둔다
+  const init = decodeState(location.hash.slice(1) || store.get('state') || '');
+  setLang(lang);                  // 푸는 동안에도 패널 글자는 보이게
+  await loadExample(init.ex !== undefined ? init.ex : defaultEx());
+  applyState(init);
+  setLang(lang);                  // 문자열 → renderList/updateScene/draw 까지
+  fitView(); if (camQ) applyCam(camQ); draw();
+})();
 
 // ── 패널 숨기기: 화면 맞춤은 창 전체 기준이라(PNG 가 가운데로 나오게) 넓은 형상은 왼쪽이 패널에 가린다 ────
 // 새로 열면 늘 보인다 — 숨긴 채 기억하면 처음 온 사람이 조작 방법을 못 찾는다.
