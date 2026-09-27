@@ -184,6 +184,7 @@ kbd{font:inherit;font-size:11px;font-weight:560;background:var(--glass2);box-sha
   <div class="grp first">
     <div class="lbl"><span class="tag" id="tParts"></span><span class="val" id="tricount"></span></div>
     <div id="parts"></div>
+    <div class="axes two" id="colRow"><button id="autoCol"></button><button id="resetCol"></button></div>
     <input type="file" id="file" multiple accept=".stl,.obj,.ply" hidden>
     <button class="wide icon" id="open" style="margin-top:8px">
       <svg viewBox="0 0 16 16"><path d="M2 4.5h4l1.5 1.5H14v7H2z"/></svg><span id="tOpen"></span></button>
@@ -289,6 +290,9 @@ const STR = {
     tipNView: '지금 보는 방향에 수직인 면으로 자른다', tipNFlip: '남기는 쪽을 바꾼다',
     tipPlaneOn: '켜기/끄기', tipRemove: '삭제', tipClose: '닫기',
     color: '색 — 누르면 팔레트가 열린다', colorCustom: '직접 고르기',
+    autoCol: '색 자동 배정', resetCol: '색 초기화',
+    tipAutoCol: '보이는 파트마다 서로 다른 색을 준다 (8개까지는 색맹 안전 팔레트, 그 이상은 색상환을 나눈다)',
+    tipResetCol: '모든 파트를 기본색(회색)으로 되돌린다',
     tri: n => `${n.toLocaleString()} tri`,
     cutCount: n => n ? `${n}개 적용` : '전체',
     planeOff: '꺼짐', planeNoCut: '자르지 않음',
@@ -329,6 +333,9 @@ const STR = {
     tipNView: 'Cut with a plane normal to the current view', tipNFlip: 'Swap which side is kept',
     tipPlaneOn: 'On/off', tipRemove: 'Remove', tipClose: 'Close',
     color: 'Colour — click for the palette', colorCustom: 'Custom colour',
+    autoCol: 'Auto colour', resetCol: 'Reset colours',
+    tipAutoCol: 'Give each visible part a distinct colour (colour-blind safe palette up to 8, hue wheel beyond)',
+    tipResetCol: 'Set every part back to the default grey',
     tri: n => `${n.toLocaleString()} tri`,
     cutCount: n => n ? `${n} active` : 'none',
     planeOff: 'off', planeNoCut: 'not cutting',
@@ -353,11 +360,12 @@ const TEXT_MAP = { '#tTitle': 'title', '#tSub': 'sub', '#langBtn': 'langBtn', '#
   '#tView': 'view', '#tOrtho': 'ortho', '#tPersp': 'persp', '#tShow': 'show', '#tOpacity': 'opacity', '#tDims': 'dims', '#tWire': 'wire',
   '#tCut': 'cut', '#tAddPlane': 'addPlane', '#nView': 'nView', '#nFlip': 'nFlip', '#tCutPos': 'cutPos',
   '#tShowPlane': 'showPlane', '#tSave': 'save', '#tAlpha': 'alpha', '#tSavePng': 'savePng', '#tShare': 'share', '#drop': 'drop',
-  '#tShotDl': 'shotDl', '#tShotCopy': 'shotCopy', '#tShotClose': 'shotClose', '#tShotHint': 'shotHint' };
+  '#tShotDl': 'shotDl', '#tShotCopy': 'shotCopy', '#tShotClose': 'shotClose', '#tShotHint': 'shotHint',
+  '#autoCol': 'autoCol', '#resetCol': 'resetCol' };
 const HTML_MAP = { '#tConvHint': 'convHint', '#tCutHint': 'cutHint', '#tKeys': 'keys' };
 const EMBEDDED_EARLY = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
 if (EMBEDDED_EARLY) TEXT_MAP['#tShotHint'] = 'shotHintEmbedded';
-const TIP_MAP = { '#nView': 'tipNView', '#nFlip': 'tipNFlip' };
+const TIP_MAP = { '#nView': 'tipNView', '#nFlip': 'tipNFlip', '#autoCol': 'tipAutoCol', '#resetCol': 'tipResetCol' };
 let lang = 'ko';
 const T = () => STR[lang];
 function setLang(l) {
@@ -697,6 +705,18 @@ function setPartColor(p, hex) {
   p.color = /^#[0-9a-fA-F]{6}$/.test(hex || '') ? hex.toLowerCase() : DEF_COLOR;
   p.rgb = hexRGB(p.color);
 }
+// 자동 배정 순서: 앞쪽일수록 서로 멀리 떨어진 색 (Okabe–Ito 권장 순서, 팔레트와 같은 명도 보정).
+// 8개를 넘으면 팔레트로는 겹치므로 색상환을 n 등분하고, 이웃한 색은 명도를 번갈아 바꿔 더 떼어 놓는다.
+const AUTO_ORDER = ['#4d9fd6', '#e0764a', '#3fbf99', '#eeb14d', '#d998bb', '#7fc9f0', '#f2e06b', '#8d97a3'];
+function hslHex(h, s, l) {
+  const f = k0 => { const k = (k0 + h / 30) % 12, a = s * Math.min(l, 1 - l);
+    return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))).toString(16).padStart(2, '0'); };
+  return '#' + f(0) + f(8) + f(4);
+}
+function autoColors(n) {
+  if (n <= AUTO_ORDER.length) return AUTO_ORDER.slice(0, n);
+  return Array.from({ length: n }, (_, i) => hslHex((205 + i * 360 / n) % 360, 0.58, i % 2 ? 0.74 : 0.60));
+}
 function removePart(p) { gl.deleteVertexArray(p.vao); gl.deleteVertexArray(p.lvao); p.bufs.forEach(b => gl.deleteBuffer(b)); PARTS.splice(PARTS.indexOf(p), 1); }
 function bboxCorners() {
   const c = [];
@@ -734,7 +754,15 @@ function buildPalette(p, sw) {
   d.appendChild(ci);
   return d;
 }
+// 켜진 파트만 칠한다 — 그림에 보이는 것끼리 최대한 구분되게. 다 꺼져 있으면 전부.
+document.getElementById('autoCol').onclick = () => {
+  const tgt = PARTS.some(p => p.on) ? PARTS.filter(p => p.on) : PARTS;
+  autoColors(tgt.length).forEach((c, i) => setPartColor(tgt[i], c));
+  renderList(); draw(); persist();
+};
+document.getElementById('resetCol').onclick = () => { PARTS.forEach(p => setPartColor(p, DEF_COLOR)); renderList(); draw(); persist(); };
 function renderList() {
+  document.getElementById('colRow').style.display = PARTS.length ? '' : 'none';   // .axes 의 display:grid 가 hidden 속성을 이긴다
   const box = document.getElementById('parts'); box.innerHTML = '';
   for (const p of PARTS) {
     const l = document.createElement('label'); l.className = 'pick';
