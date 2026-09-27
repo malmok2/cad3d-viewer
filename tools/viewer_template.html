@@ -254,6 +254,7 @@ kbd{font:inherit;font-size:11px;font-weight:560;background:var(--glass2);box-sha
     </div>
     <div class="num"><span class="cap" id="tCutPos"></span><input type="number" id="cutN" step="0.5"></div>
     <input type="range" id="cut" min="0" max="1" step="0.002">
+    <label class="pick"><input type="checkbox" id="caps"><span id="tCaps"></span></label>
     <label class="pick"><input type="checkbox" id="showPlane"><span id="tShowPlane"></span></label>
     <p class="hint" id="tCutHint"></p>
   </div>
@@ -315,7 +316,7 @@ const STR = {
     convHint: 'STEP · IGES · BREP · HDF 는 <code>tools\\cad2stl.py</code> 로 STL 로, Fluent <code>.msh</code> · <code>.cas</code> 는 <code>tools\\fluent2obj.py</code> 로 OBJ 로 바꿔서 연다. SpaceClaim 은 STEP 이나 STL 로 내보낸다.',
     view: '정면 시점 — 카메라 위치', ortho: '직교', persp: '원근',
     show: '표시', opacity: '전체 불투명도 [%]', dims: '전체 치수 표시', wire: '격자선 (와이어프레임)',
-    edges: '윤곽선 (꺾인 모서리 · 경계)', partOp: '불투명도 [%]',
+    edges: '윤곽선 (꺾인 모서리 · 경계)', partOp: '불투명도 [%]', caps: '잘린 면 채우기 (속이 찬 것처럼)',
     allOn: '모두 보기', allOff: '모두 숨기기', invOn: '반전', tipSolo: '더블클릭: 이 파트만 보기',
     measure: '측정', measBtn: '거리 재기', measClear: '지우기', measCount: n => `${n}개`,
     measHint: '켜고 형상 위를 두 번 누르면 두 점 사이 거리와 축별 차이(Δx·Δy·Δz)가 나온다. 꼭짓점 가까이 누르면 꼭짓점에 붙는다(■). 50% 미만으로 투명한 파트는 통과해 안쪽을 잰다. 돌리기는 그대로 드래그.',
@@ -333,7 +334,7 @@ const STR = {
     stDlBlocked: '이 창(앱 안 미리보기)은 파일 다운로드를 막는다 — 클립보드 복사나 그림 우클릭 저장을 쓰거나, 파일을 Chrome·Edge 에서 연다',
     shotHintEmbedded: '이 창은 다운로드를 막는다. 클립보드로 복사해 붙여 넣거나, 그림을 우클릭 → "이미지를 다른 이름으로 저장". 파일로 받으려면 HTML 을 브라우저에서 연다.',
     stShotCopyFail: '클립보드에 이미지를 쓸 수 없다 — 그림을 우클릭해 저장한다',
-    keys: '<kbd>드래그</kbd> 회전 · <kbd>휠</kbd> 확대 · <kbd>Shift+드래그</kbd> 이동 · 파일을 창에 끌어다 놓아도 된다<br>단축키 <kbd>1</kbd>–<kbd>6</kbd> 정면(+X +Y +Z −X −Y −Z) · <kbd>0</kbd> ISO · <kbd>P</kbd> 직교/원근 · <kbd>F</kbd> 화면 맞춤 · <kbd>D</kbd> 치수 · <kbd>W</kbd> 격자선 · <kbd>E</kbd> 윤곽선 · <kbd>T</kbd> 전체 투명 · <kbd>M</kbd> 거리 재기 · <kbd>S</kbd> PNG 저장 · <kbd>H</kbd> 패널 숨기기',
+    keys: '<kbd>드래그</kbd> 회전 · <kbd>휠</kbd> 확대 · <kbd>Shift+드래그</kbd> 이동 · 파일을 창에 끌어다 놓아도 된다<br>단축키 <kbd>1</kbd>–<kbd>6</kbd> 정면(+X +Y +Z −X −Y −Z) · <kbd>0</kbd> ISO · <kbd>P</kbd> 직교/원근 · <kbd>F</kbd> 화면 맞춤 · <kbd>D</kbd> 치수 · <kbd>W</kbd> 격자선 · <kbd>E</kbd> 윤곽선 · <kbd>C</kbd> 잘린 면 채우기 · <kbd>T</kbd> 전체 투명 · <kbd>M</kbd> 거리 재기 · <kbd>S</kbd> PNG 저장 · <kbd>H</kbd> 패널 숨기기',
     drop: '여기에 놓으면 열린다 — STL · OBJ · PLY',
     tipNView: '지금 보는 방향에 수직인 면으로 자른다', tipNFlip: '남기는 쪽을 바꾼다',
     tipPlaneOn: '켜기/끄기', tipRemove: '삭제', tipClose: '닫기',
@@ -366,7 +367,7 @@ const STR = {
     convHint: 'STEP · IGES · BREP · HDF: <code>tools\\cad2stl.py</code> → STL. Fluent <code>.msh</code> / <code>.cas</code>: <code>tools\\fluent2obj.py</code> → OBJ. SpaceClaim: export STEP or STL.',
     view: 'Axis view — camera position', ortho: 'Ortho', persp: 'Persp',
     show: 'Display', opacity: 'Overall opacity [%]', dims: 'Show overall dimensions', wire: 'Mesh lines (wireframe)',
-    edges: 'Feature edges (creases · borders)', partOp: 'Opacity [%]',
+    edges: 'Feature edges (creases · borders)', partOp: 'Opacity [%]', caps: 'Fill cut faces (solid look)',
     allOn: 'Show all', allOff: 'Hide all', invOn: 'Invert', tipSolo: 'Double-click: show only this part',
     measure: 'Measure', measBtn: 'Distance', measClear: 'Clear', measCount: n => `${n}`,
     measHint: 'Turn on, then click twice on the geometry for the distance and per-axis difference (Δx·Δy·Δz). Clicks near a vertex snap to it (■). Parts below 50% opacity are clicked through. Drag still rotates.',
@@ -384,7 +385,7 @@ const STR = {
     stDlBlocked: 'This window (an in-app preview) blocks file downloads — copy to the clipboard, right-click the image to save, or open the HTML in Chrome/Edge',
     shotHintEmbedded: 'Downloads are blocked in this window. Copy to the clipboard and paste, or right-click the image → "Save image as…". To get a file, open the HTML in a browser.',
     stShotCopyFail: 'Cannot write an image to the clipboard — right-click the image to save it',
-    keys: '<kbd>Drag</kbd> rotate · <kbd>Wheel</kbd> zoom · <kbd>Shift+drag</kbd> pan · files can be dropped on the window<br>Keys <kbd>1</kbd>–<kbd>6</kbd> axis views (+X +Y +Z −X −Y −Z) · <kbd>0</kbd> ISO · <kbd>P</kbd> ortho/persp · <kbd>F</kbd> fit · <kbd>D</kbd> dimensions · <kbd>W</kbd> mesh lines · <kbd>E</kbd> edges · <kbd>T</kbd> overall transparency · <kbd>M</kbd> measure · <kbd>S</kbd> save PNG · <kbd>H</kbd> hide panel',
+    keys: '<kbd>Drag</kbd> rotate · <kbd>Wheel</kbd> zoom · <kbd>Shift+drag</kbd> pan · files can be dropped on the window<br>Keys <kbd>1</kbd>–<kbd>6</kbd> axis views (+X +Y +Z −X −Y −Z) · <kbd>0</kbd> ISO · <kbd>P</kbd> ortho/persp · <kbd>F</kbd> fit · <kbd>D</kbd> dimensions · <kbd>W</kbd> mesh lines · <kbd>E</kbd> edges · <kbd>C</kbd> fill cut faces · <kbd>T</kbd> overall transparency · <kbd>M</kbd> measure · <kbd>S</kbd> save PNG · <kbd>H</kbd> hide panel',
     drop: 'Drop to open — STL · OBJ · PLY',
     tipNView: 'Cut with a plane normal to the current view', tipNFlip: 'Swap which side is kept',
     tipPlaneOn: 'On/off', tipRemove: 'Remove', tipClose: 'Close',
@@ -416,7 +417,7 @@ const TEXT_MAP = { '#tTitle': 'title', '#tSub': 'sub', '#langBtn': 'langBtn', '#
   '#tView': 'view', '#tOrtho': 'ortho', '#tPersp': 'persp', '#tShow': 'show', '#tOpacity': 'opacity', '#tDims': 'dims', '#tWire': 'wire',
   '#tCut': 'cut', '#tAddPlane': 'addPlane', '#nView': 'nView', '#nFlip': 'nFlip', '#tCutPos': 'cutPos',
   '#tShowPlane': 'showPlane', '#tSave': 'save', '#tAlpha': 'alpha', '#tShare': 'share', '#drop': 'drop',
-  '#tEdges': 'edges', '#allOn': 'allOn', '#allOff': 'allOff', '#invOn': 'invOn',
+  '#tEdges': 'edges', '#tCaps': 'caps', '#allOn': 'allOn', '#allOff': 'allOff', '#invOn': 'invOn',
   '#tMeasure': 'measure', '#tMeasBtn': 'measBtn', '#measClear': 'measClear', '#tScale': 'scale', '#tShowUi': 'showUi',
   '#tExample': 'example',
   '#tShotDl': 'shotDl', '#tShotCopy': 'shotCopy', '#tShotClose': 'shotClose', '#tShotHint': 'shotHint',
@@ -661,7 +662,8 @@ function buildSmooth(mesh, creaseDeg) {
       if (Math.abs(cs) < featCos) { fe.push(a, b); done.add(kk); }
     }
   }
-  for (const kk of first.keys()) if (!multi.has(kk)) { const a = Math.floor(kk / 4294967296); fe.push(a, kk - a * 4294967296); }
+  let bnd = 0;
+  for (const kk of first.keys()) if (!multi.has(kk)) { bnd++; const a = Math.floor(kk / 4294967296); fe.push(a, kk - a * 4294967296); }
   const feat = new Float32Array(fe.length * 3);
   for (let i = 0; i < fe.length; i++) { const v = fe[i]; feat[i*3] = VX[v*3]; feat[i*3+1] = VX[v*3+1]; feat[i*3+2] = VX[v*3+2]; }
   for (let v = 0; v < nV; v++) {
@@ -684,12 +686,12 @@ function buildSmooth(mesh, creaseDeg) {
   }
   const line = new Float32Array(edges.length * 3);
   for (let i = 0; i < edges.length; i++) { const v = edges[i]; line[i*3] = VX[v*3]; line[i*3+1] = VX[v*3+1]; line[i*3+2] = VX[v*3+2]; }
-  return { pos, nrm, line, feat, tris: nOut, edges: edges.length / 2, feats: fe.length / 2, lo, hi };
+  return { pos, nrm, line, feat, tris: nOut, edges: edges.length / 2, feats: fe.length / 2, bnd, nedge: first.size, lo, hi };
 }
 
 // ── WebGL ───────────────────────────────────────────────────────────────────
 const cv = document.getElementById('cv'), ov = document.getElementById('ov');
-const gl = cv.getContext('webgl2', { antialias: true, preserveDrawingBuffer: true, alpha: true, premultipliedAlpha: false });
+const gl = cv.getContext('webgl2', { antialias: true, preserveDrawingBuffer: true, alpha: true, premultipliedAlpha: false, stencil: true });
 if (!gl) document.getElementById('stage').innerHTML = '<p style="padding:40px">WebGL2 unavailable.</p>';
 const VS = `#version 300 es
 in vec3 aPos; in vec3 aNrm;
@@ -749,8 +751,50 @@ gl.bindAttribLocation(lprog, 0, 'aPos'); gl.linkProgram(lprog);
 if (!gl.getProgramParameter(lprog, gl.LINK_STATUS)) throw gl.getProgramInfoLog(lprog);
 const LU = {}; for (const k of ['uMV','uP','uPlanes','uNP','uColor','uShift','uPull']) LU[k] = gl.getUniformLocation(lprog, k);
 
+// ── 단면 뚜껑: 스텐실 홀짝. 절단면 위 한 점에서 남기는 쪽으로 형상 면을 홀수 번 지나면 그 점은 안쪽이다 ──
+// 파트마다·단면마다 ① 그 단면으로만 자른 파트를 색·깊이 없이 그려 스텐실 1비트를 뒤집고
+// ② 절단면을 덮는 큰 사각형을 스텐실 = 1 인 곳에만, 다른 단면들로는 잘라서 칠한다.
+const capVao = gl.createVertexArray(), capPB = gl.createBuffer(), capNB = gl.createBuffer();
+gl.bindVertexArray(capVao);
+gl.bindBuffer(gl.ARRAY_BUFFER, capPB); gl.bufferData(gl.ARRAY_BUFFER, 72, gl.DYNAMIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+gl.bindBuffer(gl.ARRAY_BUFFER, capNB); gl.bufferData(gl.ARRAY_BUFFER, 72, gl.DYNAMIC_DRAW);
+gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
+gl.bindVertexArray(null);
+function capQuad(pl) {                  // 절단면 위, 장면 전체를 덮는 사각형. 법선 = 잘려 나간 쪽(+n)
+  const nn = pl.n, c = sub(scene.ctr, mul(nn, dot(scene.ctr, nn) - pl.d));
+  const u = norm(cross(nn, Math.abs(nn[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])), v = cross(nn, u), S = scene.r * 3;
+  const q = [[-S, -S], [S, -S], [S, S], [-S, -S], [S, S], [-S, S]].map(([a, b]) => add(c, add(mul(u, a), mul(v, b))));
+  gl.bindBuffer(gl.ARRAY_BUFFER, capPB); gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array(q.flat()));
+  gl.bindBuffer(gl.ARRAY_BUFFER, capNB); gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array([].concat(...q.map(() => nn))));
+}
+// 단면 교선(삼각형 × 평면): 뚜껑 둘레 윤곽선으로 그리고, 거리 재기가 여기 꼭짓점에 붙는다. 평면마다 캐시.
+function sectionOf(p, pl) {
+  const key = pl.n.join(',') + ',' + pl.d;
+  let r = p.sec.get(key); if (r) return r;
+  if (p.sec.size > 24) dropSections(p);                           // 위치 슬라이더를 끄는 동안 쌓이지 않게
+  const P = p.pos, nn = pl.n, out = [];
+  for (let i = 0; i < P.length; i += 9) {
+    const sd = [0, 3, 6].map(o => P[i+o]*nn[0] + P[i+o+1]*nn[1] + P[i+o+2]*nn[2] - pl.d);
+    const up = sd.map(x => x > 0);
+    if (up[0] === up[1] && up[1] === up[2]) continue;
+    for (const [a, b] of [[0, 1], [1, 2], [2, 0]]) {
+      if (up[a] === up[b]) continue;
+      const t = sd[a] / (sd[a] - sd[b]), ia = i + a * 3, ib = i + b * 3;
+      out.push(P[ia] + (P[ib] - P[ia]) * t, P[ia+1] + (P[ib+1] - P[ia+1]) * t, P[ia+2] + (P[ib+2] - P[ia+2]) * t);
+    }
+  }
+  const pts = new Float32Array(out), vao = gl.createVertexArray(), buf = gl.createBuffer();
+  gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, pts, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0); gl.bindVertexArray(null);
+  r = { vao, buf, count: pts.length / 3, pts }; p.sec.set(key, r); return r;
+}
+// 겹친 솔리드(몸체 안에 채널 몸체 등)는 뚜껑이 같은 평면에 겹친다 — 작은 파트가 위에 오게(바운딩박스 대각선).
+const partSize = p => Math.hypot(p.hi[0] - p.lo[0], p.hi[1] - p.lo[1], p.hi[2] - p.lo[2]);
+function dropSections(p) { for (const r of p.sec.values()) { gl.deleteVertexArray(r.vao); gl.deleteBuffer(r.buf); } p.sec.clear(); }
+
 // ── 상태: 기본값은 한 곳, 공유되는 것과 이 화면만의 것을 나눈다 ───────────────
-const DEFAULTS = { op: 100, dims: true, wire: false, edges: false, showPlane: true, planes: [], parts: null, cols: null, ops: null };   // 공유 (해시)
+const DEFAULTS = { op: 100, dims: true, wire: false, edges: false, caps: true, showPlane: true, planes: [], parts: null, cols: null, ops: null };   // 공유 (해시)
 const st = { ...DEFAULTS };                       // planes: [{n:[3], d, on}]
 let sel = -1;                                     // 이 화면만의 것 (해시에 넣지 않는다)
 let isOrtho = true, wantAlpha = false, viewName = 'iso', lastBasis = null, lastMV = null, lastP = null;
@@ -782,6 +826,9 @@ function addPart(name, mesh, on, baked) {
   const g = upload(m.pos, m.nrm, m.line, m.feat);
   const p = { name, on, baked: !!baked, count: m.tris * 3, tris: m.tris, lcount: m.edges * 2, lo: m.lo, hi: m.hi,
               color: DEF_COLOR, rgb: [1, 1, 1], op: 100, pos: m.pos, fcount: m.feats * 2,   // pos: 거리 재기용 (CPU 쪽 사본)
+              // 닫힌 형상에만 단면 뚜껑을 씌운다. CAD STL 은 T 접합 틈으로 경계 모서리가 조금 있다(PCHE 0.08 %) —
+              // 0.5 % 까지는 닫힌 것으로 본다. Fluent zone 같은 열린 면(수 %)은 홀짝 판정이 맞지 않아 뺀다.
+              closed: m.bnd <= 0.005 * m.nedge, sec: new Map(),
               vao: g.vao, lvao: g.lvao, fvao: g.fvao, bufs: g.bufs };
   PARTS.push(p); return p;
 }
@@ -814,7 +861,7 @@ function autoColors(n) {
   return Array.from({ length: n }, (_, i) => hslHex((205 + i * 360 / n) % 360, 0.58, i % 2 ? 0.74 : 0.60));
 }
 const partName = p => (p.names && p.names[lang]) || p.name;
-function removePart(p) { gl.deleteVertexArray(p.vao); gl.deleteVertexArray(p.lvao); gl.deleteVertexArray(p.fvao); p.bufs.forEach(b => gl.deleteBuffer(b)); PARTS.splice(PARTS.indexOf(p), 1); }
+function removePart(p) { dropSections(p); gl.deleteVertexArray(p.vao); gl.deleteVertexArray(p.lvao); gl.deleteVertexArray(p.fvao); p.bufs.forEach(b => gl.deleteBuffer(b)); PARTS.splice(PARTS.indexOf(p), 1); }
 function bboxCorners() {
   const c = [];
   for (let i = 0; i < 8; i++)
@@ -958,6 +1005,26 @@ function drawGL(w, h, clearAlpha) {
   const solid = vis.filter(p => alphaOf(p) >= 0.995), glass = vis.filter(p => alphaOf(p) < 0.995);
   gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE); gl.depthMask(true);
   for (const p of solid) { gl.uniform3fv(U.uTint, p.rgb); gl.uniform1f(U.uOpacity, alphaOf(p)); gl.bindVertexArray(p.vao); gl.drawArrays(gl.TRIANGLES, 0, p.count); }
+  const setPlanes = (loc, list) => { const a2 = new Float32Array(32); list.forEach((q, i) => a2.set([q.n[0], q.n[1], q.n[2], q.d], i * 4)); gl.uniform4fv(loc.uPlanes, a2); gl.uniform1i(loc.uNP, list.length); };
+  const capped = st.caps && act.length ? solid.filter(p => p.closed).sort((u, v) => partSize(v) - partSize(u)) : [];
+  if (capped.length) {
+    gl.enable(gl.STENCIL_TEST); gl.stencilMask(1); gl.clearStencil(0);
+    act.forEach((pl, i) => {
+      capQuad(pl);
+      for (const p of capped) {
+        gl.clear(gl.STENCIL_BUFFER_BIT);                          // ① 홀짝 — 이 단면으로만 자른다
+        gl.colorMask(false, false, false, false); gl.depthMask(false); gl.disable(gl.DEPTH_TEST);
+        gl.stencilFunc(gl.ALWAYS, 0, 1); gl.stencilOp(gl.KEEP, gl.KEEP, gl.INVERT);
+        setPlanes(U, [pl]); gl.bindVertexArray(p.vao); gl.drawArrays(gl.TRIANGLES, 0, p.count);
+        gl.colorMask(true, true, true, true); gl.depthMask(true); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);   // ② 뚜껑 — 다른 단면으로 자른다, 같은 깊이면 나중(작은) 것이 이긴다
+        gl.stencilFunc(gl.EQUAL, 1, 1); gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
+        setPlanes(U, act.filter((_, j) => j !== i));
+        gl.uniform3fv(U.uTint, p.rgb.map(c => c * 0.86)); gl.uniform1f(U.uOpacity, 1);   // 겉면보다 조금 어둡게 — 잘린 면인 게 보이게
+        gl.bindVertexArray(capVao); gl.drawArrays(gl.TRIANGLES, 0, 6);
+      }
+    });
+    gl.disable(gl.STENCIL_TEST); gl.depthFunc(gl.LESS); setPlanes(U, act);
+  }
   if (glass.length) {
     const far = p => dot(sub([0, 1, 2].map(i => (p.lo[i] + p.hi[i]) / 2), eye), bz);   // 작을수록 멀다 (시선은 -bz)
     glass.sort((u, v) => far(u) - far(v));
@@ -971,7 +1038,8 @@ function drawGL(w, h, clearAlpha) {
     }
     gl.depthMask(true); gl.disable(gl.CULL_FACE); gl.disable(gl.BLEND);
   }
-  if (st.wire || st.edges) {           // 면을 살짝 뒤로 밀어 두고 그 위에 선
+  const secOn = st.caps && act.length > 0;
+  if (st.wire || st.edges || secOn) {  // 면을 살짝 뒤로 밀어 두고 그 위에 선
     gl.useProgram(lprog);
     gl.uniformMatrix4fv(LU.uMV, false, L.m); gl.uniformMatrix4fv(LU.uP, false, lastP);
     gl.uniform4fv(LU.uPlanes, arr); gl.uniform1i(LU.uNP, act.length);
@@ -993,6 +1061,19 @@ function drawGL(w, h, clearAlpha) {
     // 격자선은 예전 굵기 그대로(화면 2× 까지는 1 기기 px), 3×·4× 저장에서만 같은 비율로 굵힌다
     if (st.wire) lines('lvao', 'lcount', [0.082, 0.094, 0.11, 0.85], false, Math.max(1 / k, k > 2 ? 0.5 : 0));
     if (st.edges) lines('fvao', 'fcount', [0.05, 0.06, 0.07, 0.92], true, 1.25);
+    if (secOn) {                        // 잘린 면 둘레 — 그 단면 위의 교선을 다른 단면들로 잘라서
+      const shifts = ring((1.4 * k - 1) / 2);
+      gl.uniform4f(LU.uColor, 0.05, 0.06, 0.07, 0.95);
+      act.forEach((pl, i) => {
+        setPlanes(LU, act.filter((_, j) => j !== i));
+        for (const p of solid) {
+          const r = sectionOf(p, pl); if (!r.count) continue;
+          gl.bindVertexArray(r.vao);
+          for (const q of shifts) { gl.uniform2f(LU.uShift, q[0] * 2 / w, q[1] * 2 / h); gl.drawArrays(gl.LINES, 0, r.count); }
+        }
+      });
+      setPlanes(LU, act);
+    }
     gl.uniform2f(LU.uShift, 0, 0);
     gl.depthMask(true); gl.depthFunc(gl.LESS); gl.disable(gl.BLEND);
     gl.useProgram(prog);
@@ -1155,6 +1236,39 @@ function rayHit(o, d, parts) {
   }
   return best;
 }
+// 광선이 파트 면을 t > tmin 에서 몇 번 지나는가 (단면 무시) — 뚜껑 안쪽 판정용, 그리기의 홀짝과 같은 규칙
+function countHits(o, d, p, tmin) {
+  const P = p.pos; let c = 0;
+  for (let i = 0; i < P.length; i += 9) {
+    const ax = P[i], ay = P[i+1], az = P[i+2];
+    const e1x = P[i+3]-ax, e1y = P[i+4]-ay, e1z = P[i+5]-az, e2x = P[i+6]-ax, e2y = P[i+7]-ay, e2z = P[i+8]-az;
+    const px = d[1]*e2z - d[2]*e2y, py = d[2]*e2x - d[0]*e2z, pz = d[0]*e2y - d[1]*e2x;
+    const det = e1x*px + e1y*py + e1z*pz; if (Math.abs(det) < 1e-30) continue;
+    const iv = 1 / det, tx = o[0]-ax, ty = o[1]-ay, tz = o[2]-az, u = (tx*px + ty*py + tz*pz) * iv;
+    if (u < 0 || u > 1) continue;
+    const qx = ty*e1z - tz*e1y, qy = tz*e1x - tx*e1z, qz = tx*e1y - ty*e1x, v = (d[0]*qx + d[1]*qy + d[2]*qz) * iv;
+    if (v < 0 || u + v > 1) continue;
+    if ((e2x*qx + e2y*qy + e2z*qz) * iv > tmin) c++;
+  }
+  return c;
+}
+// 뚜껑과의 교점: 광선이 남기는 쪽으로 단면을 지나고(카메라가 잘려 나간 쪽), 다른 단면에 안 잘리고,
+// 그 뒤로 파트 면을 홀수 번 지나면 안쪽 — 그리는 뚜껑과 같은 곳이다.
+function capHit(o, d, tmax) {
+  if (!st.caps) return null;
+  const act = activePlanes(), gop = st.op / 100;
+  const parts = PARTS.filter(p => p.on && p.closed && gop * p.op / 100 >= 0.995).sort((u, v) => partSize(u) - partSize(v));   // 그림처럼 작은 것 먼저
+  let best = null;
+  act.forEach((pl, i) => {
+    const dn = dot(d, pl.n); if (dn > -1e-12) return;
+    const t = (pl.d - dot(o, pl.n)) / dn;
+    if (t <= 0 || t >= tmax || (best && t >= best.t)) return;
+    const X = add(o, mul(d, t));
+    if (act.some((q, j) => j !== i && dot(X, q.n) > q.d)) return;
+    for (const p of parts) if (countHits(o, d, p, t) % 2 === 1) { best = { t, p: X, part: p, plane: pl }; break; }
+  });
+  return best;
+}
 function pick(x, y) {                                              // x, y: 캔버스 CSS px
   const w = cv.clientWidth, h = cv.clientHeight, asp = w / h, th = Math.tan(FOV / 2);
   const [bx, by, bz] = cam.R, eye = add(cam.tgt, mul(bz, cam.dist)), nx = x / w * 2 - 1, ny = 1 - y / h * 2;
@@ -1165,6 +1279,18 @@ function pick(x, y) {                                              // x, y: 캔�
   } else { o = eye; d = norm(add(mul(bz, -1), add(mul(bx, nx * th * asp), mul(by, ny * th)))); }
   const vis = PARTS.filter(p => p.on), gop = st.op / 100;
   const hit = rayHit(o, d, vis.filter(p => gop * p.op / 100 >= 0.5)) || rayHit(o, d, vis);   // 투명한 것은 통과
+  const cap = capHit(o, d, hit ? hit.t : Infinity);
+  if (cap) {                                                       // 잘린 면 — 단면 교선의 꼭짓점에 붙는다
+    const others = activePlanes().filter(q => q !== cap.plane); let bs = null;
+    const gop2 = st.op / 100, S = [].concat(...PARTS.filter(p => p.on && gop2 * p.op / 100 >= 0.995).map(p => Array.from(sectionOf(p, cap.plane).pts)));   // 그 평면의 모든 윤곽선
+    for (let i = 0; i < S.length; i += 3) {
+      const v = [S[i], S[i+1], S[i+2]];
+      if (others.some(pl => dot(v, pl.n) > pl.d)) continue;
+      const q = project(v, w, h), dd = Math.hypot(q[0] - x, q[1] - y);
+      if (dd < 10 && (!bs || dd < bs.dd)) bs = { dd, v };
+    }
+    return bs ? { p: bs.v, snap: true } : { p: cap.p, snap: false };
+  }
   if (!hit) return null;
   const P = hit.part.pos, act = activePlanes(); let best = null;
   for (let c = 0; c < 3; c++) {
@@ -1383,6 +1509,7 @@ const showOp = pair(document.getElementById('op'), document.getElementById('opN'
 document.getElementById('dims').onchange = e => { st.dims = e.target.checked; persist(); draw(); };
 document.getElementById('wire').onchange = e => { st.wire = e.target.checked; persist(); draw(); };
 document.getElementById('edges').onchange = e => { st.edges = e.target.checked; persist(); draw(); };
+document.getElementById('caps').onchange = e => { st.caps = e.target.checked; persist(); draw(); };
 document.getElementById('showPlane').onchange = e => { st.showPlane = e.target.checked; persist(); draw(); };
 // [카메라가 놓이는 방향(뒤 벡터), 화면 위쪽]
 const ISO_Z = [Math.sin(0.92) * Math.cos(0.40), Math.sin(0.40), Math.cos(0.92) * Math.cos(0.40)];
@@ -1531,6 +1658,7 @@ function encodeState() {
     if (ops.some(c => c !== '-')) q.set('ops', ops.join(','));
   }
   if (st.edges) q.set('edge', 1);
+  if (!st.caps) q.set('cap', 0);                  // 기본(켬)이면 넣지 않는다
   if (curEx !== defaultEx()) q.set('ex', curEx);   // 기본 예제면 넣지 않는다 — 예전 링크와 같은 모양
   return q.toString();
 }
@@ -1546,6 +1674,7 @@ function decodeState(s) {
   if (q.has('cols')) o.cols = q.get('cols').split(',').map(c => /^[0-9a-fA-F]{6}$/.test(c) ? '#' + c.toLowerCase() : DEF_COLOR);
   if (q.has('ops')) o.ops = q.get('ops').split(',').map(c => c !== '-' && c !== '' && Number.isFinite(+c) ? clamp(+c, 0, 100) : 100);
   if (q.has('edge')) o.edges = q.get('edge') === '1';
+  if (q.has('cap')) o.caps = q.get('cap') !== '0';
   if (q.has('ex')) o.ex = q.get('ex');
   return o;
 }
@@ -1590,7 +1719,7 @@ function applyState(o) {
 }
 function syncChecks() {
   document.getElementById('dims').checked = st.dims; document.getElementById('wire').checked = st.wire; document.getElementById('showPlane').checked = st.showPlane;
-  document.getElementById('edges').checked = st.edges;
+  document.getElementById('edges').checked = st.edges; document.getElementById('caps').checked = st.caps;
   showOp();
 }
 
@@ -1688,6 +1817,7 @@ addEventListener('keydown', e => {
   else if (key === 'd') click('#dims');
   else if (key === 'w') click('#wire');
   else if (key === 'e') click('#edges');
+  else if (key === 'c') click('#caps');
   else if (key === 't') { st.op = st.op > 60 ? 35 : 100; showOp(); persist(); draw(); }
   else if (key === 'm') setMeas(!meas.on);
   else if (key === 's') click('#save');

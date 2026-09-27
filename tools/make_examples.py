@@ -72,7 +72,7 @@ def box(m, lo, hi):
 
 
 def sweep_tube(m, path, r, circ):
-    """경로를 따라 원을 쓸어 관을 만든다 (회전 최소 프레임). 양 끝은 열어 둔다."""
+    """경로를 따라 원을 쓸어 관을 만든다 (회전 최소 프레임). 양 끝을 막아 닫힌 솔리드로 — 단면 뚜껑이 끝에서도 맞게."""
     P = np.asarray(path, float); n = len(P)
     T = np.gradient(P, axis=0); T /= np.linalg.norm(T, axis=1)[:, None]
     u = np.cross(T[0], [0, 1, 0]); u = u / np.linalg.norm(u) if np.linalg.norm(u) > 1e-6 else np.array([1.0, 0, 0])
@@ -97,6 +97,10 @@ def sweep_tube(m, path, r, circ):
         nrm = np.cross(q[1] - q[0], q[3] - q[0])
         if nrm @ (q.mean(0) - ctr) < 0: f = f[::-1]
         m.F.append([base + i for i in f])
+    for i, s in ((0, -1.0), (n - 1, 1.0)):                   # 양 끝 마개: 바깥 = 진행 방향 앞뒤
+        f = list(range(i * circ, (i + 1) * circ)); q = PV[f]
+        if np.cross(q[1] - q[0], q[2] - q[0]) @ (s * T[i]) < 0: f = f[::-1]
+        m.F.append([base + k for k in f])
 
 
 def write_obj(path, groups, header):
