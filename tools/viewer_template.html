@@ -877,41 +877,113 @@ function drawOverlay(ctx, w, h, k, light) {
   if (st.showPlane) for (const p of activePlanes()) drawPlaneOutline(ctx, w, h, k, p, p === plane());
   if (st.dims && !light) drawDims(ctx, w, h, k);
 }
+// 치수: 제도의 등각 치수처럼 3D 에서 그린다. 치수선은 바운딩박스 모서리를 다른 축 방향으로 띄운 선이고,
+// 연장선·화살촉·글자가 모두 그 평면(치수 축 × 띄운 축) 위에 놓인 채 투영된다 — 그래서 연장선이 형상의 모서리와
+// 나란하고, 글자도 그 면에 붙어 기울어진다. 모서리(4개) × 띄울 방향(2개) 중 화면에서 형상 바깥으로 가장 멀리
+// 나가는 것을 고르고, 같으면 아래쪽을 조금 더 쳐준다(제도 관례: 가로·깊이는 바닥에). 화면 밖·패널 밑은 피한다.
+function convexHull(P) {
+  const q = P.map(p => p.slice()).sort((u, v) => u[0] - v[0] || u[1] - v[1]);
+  const cr = (o, u, v) => (u[0]-o[0]) * (v[1]-o[1]) - (u[1]-o[1]) * (v[0]-o[0]);
+  const lo = [], up = [];
+  for (const p of q) { while (lo.length > 1 && cr(lo[lo.length-2], lo[lo.length-1], p) <= 0) lo.pop(); lo.push(p); }
+  for (const p of q.reverse()) { while (up.length > 1 && cr(up[up.length-2], up[up.length-1], p) <= 0) up.pop(); up.push(p); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+}
+function inHull(H, p) {
+  if (H.length < 3) return false;
+  for (let i = 0; i < H.length; i++) {
+    const a = H[i], b = H[(i + 1) % H.length];
+    if ((b[0]-a[0]) * (p[1]-a[1]) - (b[1]-a[1]) * (p[0]-a[0]) < 0) return false;
+  }
+  return true;
+}
 function drawDims(ctx, w, h, k) {
-  const C = bboxCorners().map(p => project(p, w, h));
-  const cen = [C.reduce((s, p) => s + p[0], 0) / 8, C.reduce((s, p) => s + p[1], 0) / 8];
-  const OFF = 34 * k, EXT = 7 * k, AR = 7 * k;
-  ctx.font = `520 ${12.5 * k}px ${FONT()}`;
+  const lo = scene.lo, hi = scene.hi, sp = p => project(p, w, h);
+  const corner = i => [0, 1, 2].map(a => (i >> a) & 1 ? hi[a] : lo[a]);
+  const E = a => { const v = [0, 0, 0]; v[a] = 1; return v; };
+  const C2 = [0, 1, 2, 3, 4, 5, 6, 7].map(i => sp(corner(i)));
+  const cen = [C2.reduce((t, p) => t + p[0], 0) / 8, C2.reduce((t, p) => t + p[1], 0) / 8];
+  const hull = convexHull(C2);
+  // 월드 1 단위가 화면에서 몇 px 인가 — 카메라 오른쪽 축 방향은 줄어들지 않으므로 그걸로 잰다
+  const pc = sp(scene.ctr), pr = sp(add(scene.ctr, lastBasis[0]));
+  const px = Math.hypot(pr[0] - pc[0], pr[1] - pc[1]);
+  if (!(px > 0)) return;
+  const OFFPX = 30 * k, OFF = OFFPX / px;            // 형상에서 치수선까지 (세 치수 공통 — 같은 거리여야 한 벌로 보인다)
+  const GAP = 0.14 * OFF, OVER = 0.30 * OFF;         // 연장선: 형상에서 살짝 떼고, 치수선 너머로 조금 넘긴다
+  const AR = 9 * k / px, AW = 0.30;                  // 화살촉 길이(월드)·폭 비
+  const line = (P, Q) => { const p = sp(P), q = sp(Q); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); };
+  // 화면 밖이나 조작 패널 밑에 깔리는 자리는 피한다. k 는 CSS px → 캔버스 px 배율이라 화면·PNG 저장 모두 같은 자리를 고른다.
+  const ui = document.getElementById('ui').getBoundingClientRect(), mg = 8 * k;
+  const hidden = q => q[0] < mg || q[1] < mg || q[0] > w - mg || q[1] > h - mg ||
+    (q[0] > ui.left * k && q[0] < ui.right * k && q[1] > ui.top * k && q[1] < ui.bottom * k);
+  ctx.font = `560 ${12.5 * k}px ${FONT()}`;
   for (let ax = 0; ax < 3; ax++) {
-    const bit = 1 << ax; let best = null, bestD = -1;
+    const bit = 1 << ax, d = E(ax);
+    const Lscr = Math.hypot(C2[bit][0] - C2[0][0], C2[bit][1] - C2[0][1]);
+    if (!(Lscr >= 14 * k)) continue;                 // 화면을 향한 축은 edge-on — 숨긴다
+    let best = null;
     for (let i = 0; i < 8; i++) {
       if (i & bit) continue;
-      const a = C[i], b = C[i | bit], m = [(a[0]+b[0])/2, (a[1]+b[1])/2];
-      const d = Math.hypot(m[0]-cen[0], m[1]-cen[1]);
-      if (d > bestD) { bestD = d; best = [a, b, m]; }
+      const A = corner(i), B = corner(i | bit);
+      for (let o = 0; o < 3; o++) {
+        if (o === ax) continue;
+        const sg = (i >> o) & 1 ? 1 : -1, ov = mul(E(o), sg * OFF);   // 형상 바깥쪽으로
+        const pa = sp(add(A, ov)), pb = sp(add(B, ov));
+        const offPx = Math.hypot(pa[0] - C2[i][0], pa[1] - C2[i][1]);
+        const m = [(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2];
+        // 같으면 아래쪽(제도 관례), 그다음 오른쪽(패널 반대편)
+        let score = Math.hypot(m[0] - cen[0], m[1] - cen[1]) + 0.25 * (m[1] - cen[1]) + 0.1 * (m[0] - cen[0]);
+        if (offPx < 0.45 * OFFPX) score -= 1e6;      // 띄운 방향이 시선과 거의 나란하다 — 연장선이 안 보인다
+        // 나쁜 순서: 글자 자리(중점)가 가려짐 > 형상 위에 얹힘 > 선 끝이 화면 밖으로 잘림
+        const lp = offPx > 0 ? [m[0] + (pa[0] - C2[i][0]) / offPx * 22 * k, m[1] + (pa[1] - C2[i][1]) / offPx * 22 * k] : m;  // 글자 자리
+        const midHidden = hidden(m) || hidden(lp);
+        if (midHidden) score -= 2e5;
+        if (inHull(hull, m)) score -= 1e5;
+        score -= 3e4 * [pa, pb].filter(hidden).length;
+        if (!best || score > best.score) best = { score, A, B, o, sg, ov, midHidden };
+      }
     }
-    if (!best) continue;
-    const [a, b, m] = best, v = [b[0]-a[0], b[1]-a[1]], L = Math.hypot(v[0], v[1]);
-    if (!(L >= 14 * k)) continue;                     // 화면을 향한 축은 edge-on — 숨긴다
-    let per = [-v[1] / L, v[0] / L];
-    if ((m[0]-cen[0]) * per[0] + (m[1]-cen[1]) * per[1] < 0) per = [-per[0], -per[1]];
-    const a2 = [a[0] + per[0]*OFF, a[1] + per[1]*OFF], b2 = [b[0] + per[0]*OFF, b[1] + per[1]*OFF];
-    const u = [v[0] / L, v[1] / L];
-    ctx.strokeStyle = INK; ctx.fillStyle = INK; ctx.lineWidth = 1.1 * k;
-    ctx.beginPath();
-    ctx.moveTo(a[0] + per[0]*3*k, a[1] + per[1]*3*k); ctx.lineTo(a2[0] + per[0]*EXT, a2[1] + per[1]*EXT);
-    ctx.moveTo(b[0] + per[0]*3*k, b[1] + per[1]*3*k); ctx.lineTo(b2[0] + per[0]*EXT, b2[1] + per[1]*EXT);
-    ctx.moveTo(a2[0], a2[1]); ctx.lineTo(b2[0], b2[1]); ctx.stroke();
-    for (const [p, s] of [[a2, 1], [b2, -1]]) {
-      ctx.beginPath(); ctx.moveTo(p[0], p[1]);
-      ctx.lineTo(p[0] + s*u[0]*AR - per[0]*AR*0.38, p[1] + s*u[1]*AR - per[1]*AR*0.38);
-      ctx.lineTo(p[0] + s*u[0]*AR + per[0]*AR*0.38, p[1] + s*u[1]*AR + per[1]*AR*0.38);
-      ctx.closePath(); ctx.fill();
+    if (best.midHidden) continue;                    // 어디에 두어도 글자가 가려진다 (형상이 화면을 꽉 채움) — 그리지 않는다
+    const { A, B, o, sg, ov } = best, A1 = add(A, ov), B1 = add(B, ov), eo = mul(E(o), sg);
+    // 선
+    ctx.strokeStyle = INK; ctx.fillStyle = INK;
+    ctx.lineWidth = 0.9 * k; ctx.globalAlpha = 0.8; ctx.beginPath();
+    line(add(A, mul(eo, GAP)), add(A1, mul(eo, OVER)));
+    line(add(B, mul(eo, GAP)), add(B1, mul(eo, OVER)));
+    ctx.stroke();
+    ctx.lineWidth = 1.1 * k; ctx.globalAlpha = 1; ctx.beginPath();
+    const pa = sp(A1), pb = sp(B1), inside = Math.hypot(pb[0] - pa[0], pb[1] - pa[1]) > 34 * k;
+    if (inside) line(A1, B1);                        // 짧으면 화살촉을 바깥에 두고 선을 양쪽으로 뺀다
+    else { line(add(A1, mul(d, -2.2 * AR)), add(B1, mul(d, 2.2 * AR))); }
+    ctx.stroke();
+    // 화살촉 — 치수 평면 위의 삼각형이라 기울기가 형상과 같이 눕는다
+    for (const [P, dir] of [[A1, inside ? 1 : -1], [B1, inside ? -1 : 1]]) {
+      const base = add(P, mul(d, dir * AR)), t = sp(P);
+      let u = sp(add(base, mul(eo, AR * AW))), v = sp(add(base, mul(eo, -AR * AW)));
+      if (Math.hypot(u[0] - v[0], u[1] - v[1]) < 3 * k) {   // 평면이 옆으로 보여 납작해졌다 — 화면 기준 화살촉으로
+        const bs = sp(base), l = Math.hypot(bs[0] - t[0], bs[1] - t[1]) || 1, q = [-(bs[1] - t[1]) / l * 2.7 * k, (bs[0] - t[0]) / l * 2.7 * k];
+        u = [bs[0] + q[0], bs[1] + q[1]]; v = [bs[0] - q[0], bs[1] - q[1]];
+      }
+      ctx.beginPath(); ctx.moveTo(t[0], t[1]); ctx.lineTo(u[0], u[1]); ctx.lineTo(v[0], v[1]); ctx.closePath(); ctx.fill();
     }
-    const txt = (scene.hi[ax] - scene.lo[ax]).toFixed(2), tw = ctx.measureText(txt).width;
-    const tm = [(a2[0]+b2[0])/2 + per[0]*11*k, (a2[1]+b2[1])/2 + per[1]*11*k];
-    ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.fillRect(tm[0] - tw/2 - 3*k, tm[1] - 8*k, tw + 6*k, 16*k);
-    ctx.fillStyle = INK; ctx.fillText(txt, tm[0], tm[1] + 0.5*k);
+    // 글자 — 치수 평면에 붙인다(기울임). 거울상이 되거나 거꾸로 읽히지 않게 방향을 고르고,
+    // 평면이 거의 옆으로 보여 글자가 뭉개질 만큼 기울면 치수선을 따라 돌리기만 한다.
+    const M = mul(add(A1, B1), 0.5), pm = sp(M), nrm = v => { const l = Math.hypot(v[0], v[1]) || 1; return [v[0] / l, v[1] / l]; };
+    let ex = nrm((q => [q[0] - pm[0], q[1] - pm[1]])(sp(add(M, d))));
+    const eu = nrm((q => [q[0] - pm[0], q[1] - pm[1]])(sp(add(M, eo))));    // 화면에서 '바깥' 방향
+    if (ex[0] < -0.2 || (Math.abs(ex[0]) <= 0.2 && ex[1] > 0)) ex = [-ex[0], -ex[1]];   // 왼→오, 세로면 아래→위
+    let up = eu, cr = ex[0] * up[1] - ex[1] * up[0];
+    if (cr > 0) { up = [-up[0], -up[1]]; cr = -cr; }                 // 거울상 방지 (canvas 는 y 가 아래로)
+    if (-cr < 0.6) up = [ex[1], -ex[0]];                             // 37° 보다 더 누우면 읽기 어렵다 — 기울이지 않는다
+    const out = up[0] * eu[0] + up[1] * eu[1] >= 0;                 // 글자 위쪽이 바깥을 향하는가
+    const txt = (hi[ax] - lo[ax]).toFixed(2), tw = ctx.measureText(txt).width, TH = 12.5 * k, g = 4 * k;
+    ctx.save();
+    ctx.transform(ex[0], ex[1], -up[0], -up[1], pm[0], pm[1]);
+    const y0 = out ? -g - TH : g;                                   // 글자는 늘 치수선의 바깥쪽에
+    ctx.fillStyle = 'rgba(255,255,255,.88)'; ctx.fillRect(-tw / 2 - 3 * k, y0 - 1.5 * k, tw + 6 * k, TH + 3 * k);
+    ctx.fillStyle = INK; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(txt, 0, y0 + 0.5 * k);
+    ctx.restore();
   }
 }
 function planeLhs(p) {
